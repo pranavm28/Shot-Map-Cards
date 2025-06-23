@@ -13,4 +13,3 @@ polars
 datasets
 gdown
 highlight-text
-os
