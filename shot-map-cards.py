@@ -9,6 +9,7 @@ import gc
 from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
+import os
 
 @st.cache_resource
 def load_font():
