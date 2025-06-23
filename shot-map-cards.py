@@ -7,6 +7,10 @@ import io
 import base64
 import gc
 from highlight_text import fig_text
+import matplotlib as mpl
+import matplotlib.font_manager as fm
+
+# --- Function Definitions ---
 
 @st.cache_data(show_spinner="Loading data...", max_entries=5)
 def load_data_filtered(data_path: str, league: str, season_internal: str, columns=None):
@@ -195,10 +199,10 @@ def create_shot_map(df, player_name, minutes_df, max_time=None):
     pitch.scatter(64*1.2, 10*0.8, s=1800, marker='o', edgecolors='none', c='#FF5959', 
                  ax=ax, ls='-', lw=2.5, alpha=0.3, zorder=4)
     pitch.annotate(f'{stats["total_shots"]:03d}', xy=(64*1.2, 10*0.8), xytext=(77.5, 6.15), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     pitch.annotate('Shots', xy=(64*1.2, 10*0.8), xytext=(77.5, 11.2), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     
     # Circle 2: Goals
@@ -207,10 +211,10 @@ def create_shot_map(df, player_name, minutes_df, max_time=None):
     pitch.scatter(64*1.2, 30*0.8, s=1800, marker='o', edgecolors='none', c='#8ff00f', 
                  ax=ax, ls='-', lw=2.5, alpha=0.3, zorder=4)
     pitch.annotate(f'{stats["total_goals"]:02d}', xy=(64*1.2, 30*0.8), xytext=(77.5, 22.85), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     pitch.annotate('Goals', xy=(64*1.2, 30*0.8), xytext=(77.5, 27.2), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     
     # Circle 3: Conversion Rate
@@ -219,10 +223,10 @@ def create_shot_map(df, player_name, minutes_df, max_time=None):
     pitch.scatter(64*1.2, 50*0.8, s=1800, marker='o', edgecolors='none', c='#FFFFFF', 
                  ax=ax, ls='-', lw=2.5, alpha=0.2, zorder=4)
     pitch.annotate(f'{stats["conversion_rate"]:.1f}', xy=(64*1.2, 50*0.8), xytext=(77.5, 38.33), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=18, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=18, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     pitch.annotate('Conv. %', xy=(64*1.2, 50*0.8), xytext=(77.5, 43.2), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     
     # Circle 4: Average Time to Shoot
@@ -231,10 +235,10 @@ def create_shot_map(df, player_name, minutes_df, max_time=None):
     pitch.scatter(64*1.2, 78*0.8, s=1800, marker='o', edgecolors='none', c='#FFFFFF', 
                  ax=ax, ls='-', lw=2.5, alpha=0.2, zorder=4)
     pitch.annotate(f'{stats["avg_time_to_shoot"]:.1f}s', xy=(64*1.2, 78*0.8), xytext=(77.5, 60.8), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=18, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=18, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     pitch.annotate('Avg. Time', xy=(64*1.2, 78*0.8), xytext=(77.5, 65.4), 
-                  ax=ax, font='Arial Rounded MT Bold', fontsize=22, color='#FFFFFF', 
+                  ax=ax, font='Arial', fontsize=22, color='#FFFFFF', 
                   fontweight='bold', zorder=5)
     
     # Divider line
@@ -245,12 +249,12 @@ def create_shot_map(df, player_name, minutes_df, max_time=None):
     
     # Title with team and minutes
     time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
-    fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
+    fig_text(0.512, 0.975, f"<{player_name}>", font='Arial', size=30,
              ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
     
     fig_text(0.512, 0.928,
              f"{player_team} | {player_minutes} Mins Played | Shot Map Card{time_filter_text} | Made by @pranav_m28",
-             font='Arial Rounded MT Bold', size=24,
+             font='Arial', size=24,
              ha="center", color="#FFFFFF", fontweight='bold')
     
     # Save plot to buffer for display
