@@ -8,6 +8,14 @@ import base64
 import gc
 from highlight_text import fig_text
 import matplotlib as mpl
+import matplotlib.font_manager as fm
+
+# Register the font
+font_path = 'fonts/Arial-Rounded-MT-Bold.ttf'
+fm.fontManager.addfont(font_path)
+
+# Use the font
+plt.rcParams['font.family'] = 'Arial Rounded MT Bold'
 
 # --- Function Definitions ---
 
