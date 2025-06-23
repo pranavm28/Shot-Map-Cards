@@ -10,12 +10,23 @@ from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 
-# Register the font
-font_path = 'fonts/Arial-Rounded-MT-Bold.ttf'
-fm.fontManager.addfont(font_path)
+@st.cache_resource
+def load_font():
+    try:
+        font_path = 'fonts/Arial-Rounded-MT-Bold.ttf'
+        if os.path.exists(font_path):
+            fm.fontManager.addfont(font_path)
+            return 'Arial Rounded MT Bold'
+        else:
+            st.warning("Custom font not found, using system default")
+            return 'DejaVu Sans'
+    except Exception as e:
+        st.error(f"Error loading font: {e}")
+        return 'DejaVu Sans'
 
 # Use the font
-plt.rcParams['font.family'] = 'Arial Rounded MT Bold'
+font_family = load_font()
+plt.rcParams['font.family'] = font_family
 
 # --- Function Definitions ---
 
