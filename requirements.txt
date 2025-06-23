@@ -1,0 +1,15 @@
+streamlit
+altair==5.2.0
+pandas
+numpy
+matplotlib
+scipy
+mplsoccer
+fsspec==2025.3.0
+huggingface_hub
+requests
+aiohttp
+polars
+datasets
+gdown
+highlight-text
