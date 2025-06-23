@@ -54,8 +54,8 @@ def prepare_shot_data(data):
     data = data.copy()
     
     # Scale coordinates
-    data['x'] = data['x'] * 1.2
-    data['y'] = data['y'] * 0.84
+    data['x'] = data['x'] * 1.23
+    data['y'] = data['y'] * 0.8
     data['endX'] = data['endX'] * 1.2
     data['endY'] = data['endY'] * 0.8
     
