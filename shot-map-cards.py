@@ -7,45 +7,6 @@ import io
 import base64
 import gc
 from highlight_text import fig_text
-import matplotlib as mpl
-import matplotlib.font_manager as fm
-import os
-import tempfile
-
-@st.cache_resource
-def load_font():
-    try:
-        font_path = 'fonts/Arial-Rounded-MT-Bold.ttf'
-        if os.path.exists(font_path):
-            fm.fontManager.addfont(font_path)
-            return 'Arial Rounded MT Bold'
-        else:
-            # Set matplotlib to use a bold variant of a system font
-            plt.rcParams['font.weight'] = 'bold'
-            
-            # Try to find the best available font
-            available_fonts = [font.name for font in fm.fontManager.ttflist]
-            
-            # Preferred fonts in order
-            font_options = [
-                'Arial Black',
-                'Arial',
-                'Helvetica',
-                'Liberation Sans',
-                'DejaVu Sans'
-            ]
-            
-            for font in font_options:
-                if font in available_fonts:
-                    return font
-            
-            return 'sans-serif'
-    except Exception as e:
-        st.error(f"Error loading font: {e}")
-        plt.rcParams['font.weight'] = 'bold'
-        return 'sans-serif'
-
-# --- Function Definitions ---
 
 @st.cache_data(show_spinner="Loading data...", max_entries=5)
 def load_data_filtered(data_path: str, league: str, season_internal: str, columns=None):
