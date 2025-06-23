@@ -9,7 +9,7 @@ import gc
 from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
-from pathlib import Path`
+from pathlib import Path
 
 # ✅ Updated path to match your filename exactly
 font_path = Path(__file__).parent / "fonts" / "Arial Rounded Bold.ttf"
