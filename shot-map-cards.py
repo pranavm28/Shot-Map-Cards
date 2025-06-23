@@ -324,7 +324,7 @@ class OptimizedShotMapApp:
                 st.metric("Minutes Played", f"{int(player_info['minutes_played'])}")
                 st.metric("Shots/90", f"{player_info['shots_per_90']:.2f}")
                 st.metric("Goals/90", f"{player_info['goals_per_90']:.2f}")
-                st.metric("Avg. Time to Shoot", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
+                st.metric("Avg. Time to Shoot (after rec. a pass)", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
         
         # Summary table
         st.subheader(f"📋 All Players Summary (Min. {min_minutes} minutes)")
