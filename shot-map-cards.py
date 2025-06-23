@@ -23,7 +23,6 @@ except Exception as e:
     print(f"Font loading error: {e}")
 
 class OptimizedShotMapApp:
-    """Optimized Streamlit app using preprocessed data."""
     
     def __init__(self):
         self.league_files = {
@@ -214,10 +213,10 @@ class OptimizedShotMapApp:
     
     def run(self):
         """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis - Optimized", layout="wide")
+        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
         
-        st.title("⚽ Shot Map Analysis Tool - Optimized")
-        st.markdown("*Lightning fast analysis using preprocessed data*")
+        st.title("⚽ Shot Map Analysis Tool")
+        #st.markdown("*Lightning fast analysis using preprocessed data*")
         
         # Sidebar
         st.sidebar.header("🎯 Filters")
