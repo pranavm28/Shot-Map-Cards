@@ -13,7 +13,7 @@ import matplotlib.font_manager as fm
 from pathlib import Path
 
 # 1️⃣  Point to your bundled TTF:
-font_path = Path(__file__).parent / "fonts" / "ArialRoundedMTBold.ttf"
+font_path = Path(__file__).parent / "fonts" / "Arial Rounded MT Bold.ttf"
 
 # 2️⃣  Tell matplotlib about it:
 fm.fontManager.addfont(str(font_path))
