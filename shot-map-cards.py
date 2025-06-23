@@ -19,15 +19,30 @@ def load_font():
             fm.fontManager.addfont(font_path)
             return 'Arial Rounded MT Bold'
         else:
-            st.warning("Custom font not found, using system default")
-            return 'DejaVu Sans'
+            # Set matplotlib to use a bold variant of a system font
+            plt.rcParams['font.weight'] = 'bold'
+            
+            # Try to find the best available font
+            available_fonts = [font.name for font in fm.fontManager.ttflist]
+            
+            # Preferred fonts in order
+            font_options = [
+                'Arial Black',
+                'Arial',
+                'Helvetica',
+                'Liberation Sans',
+                'DejaVu Sans'
+            ]
+            
+            for font in font_options:
+                if font in available_fonts:
+                    return font
+            
+            return 'sans-serif'
     except Exception as e:
         st.error(f"Error loading font: {e}")
-        return 'DejaVu Sans'
-
-# Use the font
-font_family = load_font()
-plt.rcParams['font.family'] = font_family
+        plt.rcParams['font.weight'] = 'bold'
+        return 'sans-serif'
 
 # --- Function Definitions ---
 
