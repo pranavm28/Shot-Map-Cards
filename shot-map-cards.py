@@ -382,10 +382,10 @@ class OptimizedShotMapApp:
         st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
         
         # Performance insights
-        if max_time is not None:
-            st.subheader("🔍 Time Filter Insights")
-            avg_filtered_shots = summary_df[summary_df['Filtered Shots'] != 'N/A']['Filtered Shots'].mean()
-            st.write(f"Average shots within {max_time}s: {avg_filtered_shots:.1f}")
+        #if max_time is not None:
+         #   st.subheader("🔍 Time Filter Insights")
+          #  avg_filtered_shots = summary_df[summary_df['Filtered Shots'] != 'N/A']['Filtered Shots'].mean()
+           # st.write(f"Average shots within {max_time}s: {avg_filtered_shots:.1f}")
         
         # Sidebar social links
         with st.sidebar:
