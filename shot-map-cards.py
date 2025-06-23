@@ -9,19 +9,18 @@ import gc
 from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
-
 from pathlib import Path
 
-# 1️⃣  Point to your bundled TTF:
-font_path = Path(__file__).parent / "fonts" / "Arial Rounded MT Bold.ttf"
-
-# 2️⃣  Tell matplotlib about it:
+# ✅ Updated path to match your filename exactly
+font_path = Path(__file__).parent / "fonts" / "Arial Rounded Bold.ttf"
 fm.fontManager.addfont(str(font_path))
 
-# 3️⃣  Set it as the default:
-mpl.rcParams["font.family"] = "Arial Rounded MT Bold"     # must match the internal name in the TTF
-# optionally:
-mpl.rcParams["font.weight"] = "bold"
+# Optional: check the font's internal name
+font_prop = fm.FontProperties(fname=str(font_path))
+print("Registered font name:", font_prop.get_name())
+
+# ✅ Use the correct name returned above
+mpl.rcParams['font.family'] = font_prop.get_name()
 
 # --- Function Definitions ---
 
