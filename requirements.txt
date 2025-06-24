@@ -13,3 +13,4 @@ polars
 datasets
 gdown
 highlight-text
+plotly
