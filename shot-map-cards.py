@@ -38,23 +38,20 @@ class OptimizedShotMapApp:
     
     @st.cache_data
     def load_shot_data(_self, leagues: list) -> pd.DataFrame:
-        """Load preprocessed shot data for selected leagues."""
-        try:
-            all_data = []
-            for league in leagues:
+        """Load preprocessed shot data for multiple leagues."""
+        all_data = []
+        for league in leagues:
+            try:
                 file_path = _self.league_files[league]
                 df = pd.read_parquet(file_path)
-                df['league'] = league  # Add league column if not present
+                df['league'] = league  # Add league identifier
                 all_data.append(df)
-            
-            if all_data:
-                combined_df = pd.concat(all_data, ignore_index=True)
-                return combined_df
-            else:
-                return pd.DataFrame()
-        except Exception as e:
-            st.error(f"Failed to load shot data: {e}")
-            return pd.DataFrame()
+            except Exception as e:
+                st.error(f"Failed to load shot data for {league}: {e}")
+        
+        if all_data:
+            return pd.concat(all_data, ignore_index=True)
+        return pd.DataFrame()
     
     @st.cache_data
     def load_player_stats(_self) -> pd.DataFrame:
@@ -78,8 +75,7 @@ class OptimizedShotMapApp:
         
         return player_shots
     
-    def calculate_filtered_stats(self, shot_data: pd.DataFrame, player_name: str, 
-                                max_time: float = None, minutes_played: float = None) -> dict:
+    def calculate_filtered_stats(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None) -> dict:
         """Calculate statistics for filtered data."""
         filtered_shots = self.filter_player_shots(shot_data, player_name, max_time)
         
@@ -92,76 +88,58 @@ class OptimizedShotMapApp:
         valid_timing = all_player_shots[all_player_shots['TimeToShot'].notna()]
         avg_time_to_shoot = valid_timing['TimeToShot'].mean() if len(valid_timing) > 0 else 0
         
-        # Calculate shots with timing data
-        shots_with_timing = len(valid_timing)
-        
-        # Calculate per 90 stats if minutes_played is provided
-        per_90_stats = {}
-        if minutes_played and minutes_played > 0:
-            per_90_stats = {
-                'shots_per_90': (total_shots / minutes_played) * 90,
-                'goals_per_90': (total_goals / minutes_played) * 90,
-                'shots_with_timing_per_90': (shots_with_timing / minutes_played) * 90
-            }
-        
         return {
             'total_shots': total_shots,
             'total_goals': total_goals,
             'conversion_rate': conversion_rate,
-            'avg_time_to_shoot': avg_time_to_shoot if not np.isnan(avg_time_to_shoot) else 0,
-            'shots_with_timing': shots_with_timing,
-            **per_90_stats
+            'avg_time_to_shoot': avg_time_to_shoot if not np.isnan(avg_time_to_shoot) else 0
         }
     
-    def calculate_filtered_player_stats(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame,
-                                      selected_leagues: list, max_time: float = None) -> pd.DataFrame:
-        """Calculate filtered statistics for all players in selected leagues."""
-        # Filter player stats by selected leagues
-        filtered_player_stats = player_stats[player_stats['league'].isin(selected_leagues)].copy()
+    def calculate_filtered_stats_for_all_players(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, max_time: float = None) -> pd.DataFrame:
+        """Calculate filtered statistics for all players and create enhanced player stats."""
+        enhanced_stats = player_stats.copy()
         
-        # If no time filter, return original stats with shots_with_timing_per_90 added
-        if max_time is None:
-            # Add shots_with_timing_per_90 to existing stats
-            shots_with_timing_per_90 = []
-            for _, player_row in filtered_player_stats.iterrows():
-                player_name = player_row['player']
-                player_shots = shot_data[shot_data['player'] == player_name]
-                valid_timing = player_shots[player_shots['TimeToShot'].notna()]
-                shots_with_timing = len(valid_timing)
-                minutes = player_row['minutes_played']
-                shots_with_timing_p90 = (shots_with_timing / minutes * 90) if minutes > 0 else 0
-                shots_with_timing_per_90.append(shots_with_timing_p90)
-            
-            filtered_player_stats['shots_with_timing_per_90'] = shots_with_timing_per_90
-            return filtered_player_stats
+        # Initialize new columns
+        enhanced_stats['filtered_shots'] = 0
+        enhanced_stats['filtered_goals'] = 0
+        enhanced_stats['filtered_conversion_rate'] = 0.0
+        enhanced_stats['filtered_shots_per_90'] = 0.0
+        enhanced_stats['filtered_goals_per_90'] = 0.0
+        enhanced_stats['shots_with_timing'] = 0
+        enhanced_stats['shots_with_timing_p90'] = 0.0
         
-        # Calculate filtered stats for each player
-        filtered_stats_list = []
-        for _, player_row in filtered_player_stats.iterrows():
+        for idx, player_row in enhanced_stats.iterrows():
             player_name = player_row['player']
-            minutes = player_row['minutes_played']
+            minutes_played = player_row['minutes_played']
             
-            # Calculate filtered stats
-            filtered_stats = self.calculate_filtered_stats(shot_data, player_name, max_time, minutes)
+            # Calculate shots with timing data
+            all_player_shots = shot_data[shot_data['player'] == player_name]
+            shots_with_timing = len(all_player_shots[all_player_shots['TimeToShot'].notna()])
+            shots_with_timing_p90 = (shots_with_timing / minutes_played * 90) if minutes_played > 0 else 0
             
-            # Create new row with filtered stats
-            new_row = {
-                'player': player_name,
-                'team': player_row['team'],
-                'league': player_row['league'],
-                'minutes_played': minutes,
-                'total_shots': filtered_stats['total_shots'],
-                'total_goals': filtered_stats['total_goals'],
-                'conversion_rate': filtered_stats['conversion_rate'],
-                'shots_per_90': filtered_stats.get('shots_per_90', 0),
-                'goals_per_90': filtered_stats.get('goals_per_90', 0),
-                'avg_time_to_shoot': filtered_stats['avg_time_to_shoot'],
-                'shots_with_timing': filtered_stats['shots_with_timing'],
-                'shots_with_timing_per_90': filtered_stats.get('shots_with_timing_per_90', 0)
-            }
-            filtered_stats_list.append(new_row)
+            enhanced_stats.at[idx, 'shots_with_timing'] = shots_with_timing
+            enhanced_stats.at[idx, 'shots_with_timing_p90'] = shots_with_timing_p90
+            
+            # Calculate filtered stats if time filter is applied
+            if max_time is not None:
+                filtered_stats = self.calculate_filtered_stats(shot_data, player_name, max_time)
+                enhanced_stats.at[idx, 'filtered_shots'] = filtered_stats['total_shots']
+                enhanced_stats.at[idx, 'filtered_goals'] = filtered_stats['total_goals']
+                enhanced_stats.at[idx, 'filtered_conversion_rate'] = filtered_stats['conversion_rate']
+                
+                # Calculate per 90 stats for filtered data
+                if minutes_played > 0:
+                    enhanced_stats.at[idx, 'filtered_shots_per_90'] = filtered_stats['total_shots'] / minutes_played * 90
+                    enhanced_stats.at[idx, 'filtered_goals_per_90'] = filtered_stats['total_goals'] / minutes_played * 90
+            else:
+                # If no time filter, use original stats
+                enhanced_stats.at[idx, 'filtered_shots'] = player_row['total_shots']
+                enhanced_stats.at[idx, 'filtered_goals'] = player_row['total_goals']
+                enhanced_stats.at[idx, 'filtered_conversion_rate'] = player_row['conversion_rate']
+                enhanced_stats.at[idx, 'filtered_shots_per_90'] = player_row['shots_per_90']
+                enhanced_stats.at[idx, 'filtered_goals_per_90'] = player_row['goals_per_90']
         
-        return pd.DataFrame(filtered_stats_list)
+        return enhanced_stats
     
     def create_shot_map(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, 
                        player_name: str, max_time: float = None) -> tuple:
@@ -182,7 +160,7 @@ class OptimizedShotMapApp:
         goals = filtered_shots[filtered_shots['is_goal'] == True]
         
         # Calculate stats
-        stats = self.calculate_filtered_stats(shot_data, player_name, max_time, player_minutes)
+        stats = self.calculate_filtered_stats(shot_data, player_name, max_time)
         
         # Create the plot
         fig, ax = plt.subplots(figsize=(15.5, 12))
@@ -265,11 +243,13 @@ class OptimizedShotMapApp:
         
         # Title - Updated to reflect that only shots after passes are shown when filtered
         time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
+        leagues_text = " | ".join(shot_data[shot_data['player'] == player_name]['league'].unique())
+        
         fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
         fig_text(0.512, 0.928,
-                 f"{player_team} | {int(player_minutes)} Minutes | Shot Map Card{time_filter_text} | Made by @pranav_m28",
+                 f"{player_team} | {leagues_text} | {int(player_minutes)} Minutes | Shot Map Card{time_filter_text} | Made by @pranav_m28",
                  font='Arial Rounded MT Bold', size=24,
                  ha="center", color="#FFFFFF", fontweight='bold')
         
@@ -291,6 +271,13 @@ class OptimizedShotMapApp:
     
     def get_scatter_plot_fields(self, player_stats: pd.DataFrame) -> list:
         """Get available numeric fields for scatter plot."""
+        # Include both original and filtered fields
+        base_fields = ['total_shots', 'total_goals', 'conversion_rate', 'shots_per_90', 'goals_per_90', 
+                      'avg_time_to_shoot', 'shots_with_timing', 'shots_with_timing_p90']
+        
+        filtered_fields = ['filtered_shots', 'filtered_goals', 'filtered_conversion_rate', 
+                          'filtered_shots_per_90', 'filtered_goals_per_90']
+        
         # Exclude non-numeric and identifier fields
         exclude_fields = ['player', 'team', 'league', 'minutes_played']
         numeric_fields = []
@@ -322,6 +309,7 @@ class OptimizedShotMapApp:
             hover_name='player',
             hover_data={
                 'team': True,
+                'league': True,
                 'minutes_played': ':.0f',
                 x_field: ':.2f',
                 y_field: ':.2f'
@@ -354,7 +342,8 @@ class OptimizedShotMapApp:
             marker=dict(size=8, opacity=0.7),
             hovertemplate='<b>%{hovertext}</b><br>' +
                          'Team: %{customdata[0]}<br>' +
-                         'Minutes: %{customdata[1]:.0f}<br>' +
+                         'League: %{customdata[1]}<br>' +
+                         'Minutes: %{customdata[2]:.0f}<br>' +
                          f'{x_field.replace("_", " ").title()}: %{{x:.2f}}<br>' +
                          f'{y_field.replace("_", " ").title()}: %{{y:.2f}}<br>' +
                          '<extra></extra>'
@@ -362,50 +351,91 @@ class OptimizedShotMapApp:
         
         return fig
     
-    def render_scatter_plot_tab(self, selected_leagues: list, max_time: float = None):
+    def render_global_controls(self):
+        """Render global controls in sidebar."""
+        st.sidebar.header("🌍 Global Controls")
+        
+        # League selection (global)
+        leagues = list(self.league_files.keys())
+        selected_leagues = st.sidebar.multiselect(
+            "Select Leagues", 
+            leagues, 
+            default=leagues[:1],
+            key="global_leagues",
+            help="Select leagues to analyze (applies to both shot maps and scatter plots)"
+        )
+        
+        if not selected_leagues:
+            st.sidebar.warning("Please select at least one league.")
+            return None, None, None, None
+        
+        # Load data for selected leagues
+        with st.spinner(f"Loading data for {len(selected_leagues)} league(s)..."):
+            shot_data = self.load_shot_data(selected_leagues)
+            player_stats = self.load_player_stats()
+        
+        if shot_data.empty or player_stats.empty:
+            st.sidebar.error("Could not load data.")
+            return None, None, None, None
+        
+        # Filter player stats by selected leagues
+        filtered_player_stats = player_stats[player_stats['league'].isin(selected_leagues)]
+        
+        # Time filter (global)
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("⏱️ Global Time Filter")
+        st.sidebar.info("ℹ️ Applies to both shot maps and scatter plots. Shows only shots taken after receiving a pass from a teammate.")
+        
+        use_time_filter = st.sidebar.checkbox("Apply Time Filter", key="global_time_filter")
+        max_time = None
+        if use_time_filter:
+            max_time = st.sidebar.slider(
+                "Maximum Time to Shoot (seconds)", 
+                min_value=0.5, 
+                max_value=10.0, 
+                value=5.0, 
+                step=0.5,
+                key="global_max_time"
+            )
+        
+        # Calculate enhanced stats with time filter
+        enhanced_player_stats = self.calculate_filtered_stats_for_all_players(
+            shot_data, filtered_player_stats, max_time
+        )
+        
+        return shot_data, enhanced_player_stats, selected_leagues, max_time
+    
+    def render_scatter_plot_tab(self, shot_data, enhanced_player_stats, selected_leagues, max_time):
         """Render the scatter plot analysis tab."""
         st.header("📊 Interactive Scatter Plot Analysis")
         
-        # Show time filter context
         if max_time is not None:
-            st.markdown(f"*Showing filtered statistics for shots within {max_time} seconds after receiving a pass*")
+            st.markdown(f"*Analysis includes time filter: shots within {max_time}s after receiving a pass*")
         else:
-            st.markdown("*Showing overall season statistics*")
+            st.markdown("*Analysis includes all shots (no time filter applied)*")
         
-        # Load data
-        shot_data = self.load_shot_data(selected_leagues)
-        player_stats = self.load_player_stats()
-        
-        if shot_data.empty or player_stats.empty:
-            st.error("Could not load data.")
+        if enhanced_player_stats.empty:
+            st.error("No data available for scatter plot analysis.")
             return
         
-        # Calculate filtered player stats based on time filter
-        filtered_player_stats = self.calculate_filtered_player_stats(
-            shot_data, player_stats, selected_leagues, max_time
-        )
-        
-        if filtered_player_stats.empty:
-            st.error("No data available for selected leagues.")
-            return
-        
-        # Team selection for scatter plot
-        teams = sorted(filtered_player_stats['team'].unique())
-        scatter_teams = st.sidebar.multiselect(
-            "Select Teams for Scatter Plot", 
+        # Team selection
+        teams = sorted(enhanced_player_stats['team'].unique())
+        scatter_teams = st.multiselect(
+            "Select Teams", 
             teams, 
-            default=teams, 
-            key="scatter_teams"
+            default=teams,
+            key="scatter_teams",
+            help="Filter players by team"
         )
         
         if not scatter_teams:
             st.warning("Please select at least one team.")
             return
         
-        # Minimum minutes for scatter plot
-        max_minutes = int(filtered_player_stats['minutes_played'].max()) if len(filtered_player_stats) > 0 else 1000
-        scatter_min_minutes = st.sidebar.slider(
-            "Minimum Minutes for Scatter Plot", 
+        # Minimum minutes filter
+        max_minutes = int(enhanced_player_stats['minutes_played'].max()) if len(enhanced_player_stats) > 0 else 1000
+        scatter_min_minutes = st.slider(
+            "Minimum Minutes Played", 
             min_value=0, 
             max_value=max_minutes,
             value=0, 
@@ -414,7 +444,7 @@ class OptimizedShotMapApp:
         )
         
         # Get available fields
-        available_fields = self.get_scatter_plot_fields(filtered_player_stats)
+        available_fields = self.get_scatter_plot_fields(enhanced_player_stats)
         
         if len(available_fields) < 2:
             st.error("Not enough numeric fields available for scatter plot.")
@@ -423,11 +453,19 @@ class OptimizedShotMapApp:
         col1, col2 = st.columns(2)
         
         with col1:
-            x_field = st.selectbox("X-Axis", available_fields, index=0)
+            # Suggest filtered fields if time filter is applied
+            default_x = 'filtered_shots_per_90' if max_time is not None and 'filtered_shots_per_90' in available_fields else 0
+            if isinstance(default_x, str):
+                default_x = available_fields.index(default_x) if default_x in available_fields else 0
+            x_field = st.selectbox("X-Axis", available_fields, index=default_x)
         
         with col2:
-            # Default Y-axis to second field if available
-            default_y = 1 if len(available_fields) > 1 else 0
+            # Suggest filtered fields if time filter is applied
+            default_y = 'filtered_goals_per_90' if max_time is not None and 'filtered_goals_per_90' in available_fields else 1
+            if isinstance(default_y, str):
+                default_y = available_fields.index(default_y) if default_y in available_fields else 1
+            if isinstance(default_y, int) and default_y >= len(available_fields):
+                default_y = 1
             y_field = st.selectbox("Y-Axis", available_fields, index=default_y)
         
         if x_field == y_field:
@@ -437,7 +475,7 @@ class OptimizedShotMapApp:
         # Create and display scatter plot
         with st.spinner("Creating scatter plot..."):
             fig = self.create_scatter_plot(
-                filtered_player_stats, 
+                enhanced_player_stats, 
                 x_field, 
                 y_field, 
                 scatter_min_minutes, 
@@ -448,13 +486,13 @@ class OptimizedShotMapApp:
             st.plotly_chart(fig, use_container_width=True)
             
             # Show correlation
-            final_filtered_stats = filtered_player_stats[
-                (filtered_player_stats['minutes_played'] >= scatter_min_minutes) & 
-                (filtered_player_stats['team'].isin(scatter_teams))
+            filtered_stats = enhanced_player_stats[
+                (enhanced_player_stats['minutes_played'] >= scatter_min_minutes) & 
+                (enhanced_player_stats['team'].isin(scatter_teams))
             ]
             
-            if len(final_filtered_stats) > 1:
-                correlation = final_filtered_stats[x_field].corr(final_filtered_stats[y_field])
+            if len(filtered_stats) > 1:
+                correlation = filtered_stats[x_field].corr(filtered_stats[y_field])
                 st.info(f"📊 Correlation coefficient: {correlation:.3f}")
             
             # Summary stats
@@ -463,131 +501,72 @@ class OptimizedShotMapApp:
             
             with col1:
                 st.write(f"**{x_field.replace('_', ' ').title()}**")
-                st.write(f"Mean: {final_filtered_stats[x_field].mean():.3f}")
-                st.write(f"Median: {final_filtered_stats[x_field].median():.3f}")
-                st.write(f"Std Dev: {final_filtered_stats[x_field].std():.3f}")
+                st.write(f"Mean: {filtered_stats[x_field].mean():.3f}")
+                st.write(f"Median: {filtered_stats[x_field].median():.3f}")
+                st.write(f"Std Dev: {filtered_stats[x_field].std():.3f}")
             
             with col2:
                 st.write(f"**{y_field.replace('_', ' ').title()}**")
-                st.write(f"Mean: {final_filtered_stats[y_field].mean():.3f}")
-                st.write(f"Median: {final_filtered_stats[y_field].median():.3f}")
-                st.write(f"Std Dev: {final_filtered_stats[y_field].std():.3f}")
+                st.write(f"Mean: {filtered_stats[y_field].mean():.3f}")
+                st.write(f"Median: {filtered_stats[y_field].median():.3f}")
+                st.write(f"Std Dev: {filtered_stats[y_field].std():.3f}")
             
-            st.write(f"**Total players shown:** {len(final_filtered_stats)}")
+            leagues_shown = ", ".join(selected_leagues)
+            st.write(f"**Leagues:** {leagues_shown}")
+            st.write(f"**Total players shown:** {len(filtered_stats)}")
+            
+            if max_time is not None:
+                st.info(f"📊 Stats shown are filtered for shots within {max_time}s after receiving a pass")
         else:
             st.error("Could not create scatter plot with the selected parameters.")
     
-    def render_global_controls(self):
-        """Render global controls in sidebar."""
-        st.sidebar.header("🌍 Global Settings")
-        
-        # League selection (multiple)
-        leagues = list(self.league_files.keys())
-        selected_leagues = st.sidebar.multiselect(
-            "Select Leagues", 
-            leagues, 
-            default=leagues[:1],
-            key="global_leagues"
-        )
-        
-        if not selected_leagues:
-            st.sidebar.warning("Please select at least one league.")
-            return None, None
-        
-        # Time filter
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("⏱️ Global Time Filter")
-        st.sidebar.info("ℹ️ Time filter applies to both shot maps and scatter plots")
-        use_time_filter = st.sidebar.checkbox("Filter by Time to Shoot")
-        max_time = None
-        if use_time_filter:
-            max_time = st.sidebar.slider("Maximum Time to Shoot (seconds)", 
-                                       min_value=0.5, max_value=10.0, value=5.0, step=0.5)
-        
-        return selected_leagues, max_time
-    
-    def run(self):
-        """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
-        
-        st.title("⚽ Shot Map Analysis Tool")
-        
-        # Global controls
-        selected_leagues, max_time = self.render_global_controls()
-        
-        if not selected_leagues:
-            st.error("Please select at least one league from the sidebar.")
-            return
-        
-        # Create tabs
-        tab1, tab2 = st.tabs(["🎯 Shot Map Analysis", "📊 Scatter Plot Analysis"])
-        
-        with tab1:
-            self.render_shot_map_tab(selected_leagues, max_time)
-        
-        with tab2:
-            self.render_scatter_plot_tab(selected_leagues, max_time)
-    
-    def render_shot_map_tab(self, selected_leagues: list, max_time: float = None):
+    def render_shot_map_tab(self, shot_data, enhanced_player_stats, selected_leagues, max_time):
         """Render the shot map analysis tab."""
         st.header("🎯 Shot Map Analysis")
         
-        # Show selected leagues and time filter
-        leagues_text = ", ".join(selected_leagues)
-        time_text = f" (filtered to {max_time}s)" if max_time else ""
-        st.markdown(f"*Analyzing: {leagues_text}{time_text}*")
-        
-        # Load data
-        with st.spinner(f"Loading data for {len(selected_leagues)} league(s)..."):
-            shot_data = self.load_shot_data(selected_leagues)
-            player_stats = self.load_player_stats()
-        
-        if shot_data.empty or player_stats.empty:
-            st.error("Could not load data. Please ensure preprocessed files are available.")
-            st.stop()
-        
-        # Filter player stats by selected leagues
-        league_player_stats = player_stats[player_stats['league'].isin(selected_leagues)]
+        if max_time is not None:
+            st.markdown(f"*Shot maps show shots within {max_time}s after receiving a pass*")
+        else:
+            st.markdown("*Shot maps show all shots (no time filter applied)*")
         
         # Team selection
-        teams = sorted(league_player_stats['team'].unique())
-        selected_teams = st.sidebar.multiselect(
+        teams = sorted(enhanced_player_stats['team'].unique())
+        selected_teams = st.multiselect(
             "Select Teams", 
             teams, 
             default=teams,
-            key="shot_map_teams"
+            key="shotmap_teams",
+            help="Filter players by team"
         )
         
         if not selected_teams:
             st.warning("Please select at least one team.")
-            st.stop()
+            return
         
         # Filter by selected teams
-        filtered_player_stats = league_player_stats[league_player_stats['team'].isin(selected_teams)]
+        team_filtered_stats = enhanced_player_stats[enhanced_player_stats['team'].isin(selected_teams)]
         
         # Minimum minutes filter
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("Player Filters")
-        
-        max_minutes = int(filtered_player_stats['minutes_played'].max()) if len(filtered_player_stats) > 0 else 1000
-        min_minutes = st.sidebar.slider(
+        max_minutes = int(team_filtered_stats['minutes_played'].max()) if len(team_filtered_stats) > 0 else 1000
+        min_minutes = st.slider(
             "Minimum Minutes Played", 
             min_value=0, 
             max_value=max_minutes,
             value=0, 
-            step=50
+            step=50,
+            key="shotmap_min_minutes"
         )
         
         # Filter players by minimum minutes
-        eligible_players = filtered_player_stats[filtered_player_stats['minutes_played'] >= min_minutes]
+        eligible_players = team_filtered_stats[team_filtered_stats['minutes_played'] >= min_minutes]
         
         if len(eligible_players) == 0:
             st.warning(f"No players found with at least {min_minutes} minutes played.")
-            st.stop()
+            return
         
         # Player selection
         players = sorted(eligible_players['player'].unique())
-        selected_player = st.sidebar.selectbox("Select Player", players)
+        selected_player = st.selectbox("Select Player", players, key="shotmap_player")
         
         # Main content
         col1, col2 = st.columns([2, 1])
@@ -595,13 +574,24 @@ class OptimizedShotMapApp:
         with col1:
             st.subheader("📊 Shot Map Visualization")
             if selected_player:
-                with st.spinner("Creating shot map..."):
-                    result = self.create_shot_map(shot_data, league_player_stats, selected_player, max_time)
-                
-                if result and result[0] is not None:
-                    plot_data, download_data = result
-                    st.image(f"data:image/png;base64,{plot_data}")
-                    
-                    # Download button
-                    time_filter_suffix = f"_within_{max_time}s" if max_time is not None else ""
-                    filename = f"{selected_player.replace(' ', '_')}_shot_map{time_filter_
+            with st.spinner("Creating shot map..."):
+             result = self.create_shot_map(shot_data, enhanced_player_stats, selected_player, max_time)
+        
+            if result and result[0] is not None:
+                plot_data, download_data = result
+                st.image(f"data:image/png;base64,{plot_data}")
+            
+            # Download button
+                time_filter_suffix = f"_within_{max_time}s" if max_time is not None else ""
+                leagues_suffix = "_".join([league.split('-')[0] for league in selected_leagues])
+                filename = f"{selected_player.replace(' ', '_')}_shot_map_{leagues_suffix}{time_filter_suffix}.png"
+            
+                st.download_button(
+                    label="📥 Download High Quality Image",
+                    data=download_data,
+                    file_name=filename,
+                    mime="image/png",
+                    help="Download the shot map in high quality (400 DPI)"
+             )
+            else:
+                    st.error("Could not generate shot map for the selected player.")
