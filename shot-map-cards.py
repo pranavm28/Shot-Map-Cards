@@ -299,17 +299,39 @@ class OptimizedShotMapApp:
             st.error("Could not load player statistics.")
             return
         
-        # Use the same filters from sidebar (set in the main render_shot_map_tab)
-        # Get filtered data from session state or use all data
-        if hasattr(st.session_state, 'filtered_stats_for_scatter'):
-            league_stats = st.session_state.filtered_stats_for_scatter
-            scatter_teams = st.session_state.selected_teams_for_scatter
-            scatter_min_minutes = st.session_state.min_minutes_for_scatter
-        else:
-            # Fallback if session state not available
-            league_stats = player_stats
-            scatter_teams = sorted(league_stats['team'].unique())
-            scatter_min_minutes = 0
+        # Sidebar controls for scatter plot
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📈 Scatter Plot Controls")
+        
+        # League selection for scatter plot (multiple selection)
+        leagues = list(self.league_files.keys())
+        scatter_leagues = st.sidebar.multiselect("Select Leagues", leagues, default=leagues[:1], key="scatter_leagues")
+        
+        if not scatter_leagues:
+            st.warning("Please select at least one league.")
+            return
+        
+        # Filter by selected leagues
+        league_stats = player_stats[player_stats['league'].isin(scatter_leagues)]
+        
+        # Team selection for scatter plot
+        teams = sorted(league_stats['team'].unique())
+        scatter_teams = st.sidebar.multiselect("Select Teams", teams, default=teams, key="scatter_teams")
+        
+        if not scatter_teams:
+            st.warning("Please select at least one team.")
+            return
+        
+        # Minimum minutes for scatter plot
+        max_minutes = int(league_stats['minutes_played'].max()) if len(league_stats) > 0 else 1000
+        scatter_min_minutes = st.sidebar.slider(
+            "Minimum Minutes", 
+            min_value=0, 
+            max_value=max_minutes,
+            value=0, 
+            step=50,
+            key="scatter_min_minutes"
+        )
         
         # Get available fields
         available_fields = self.get_scatter_plot_fields(league_stats)
@@ -395,30 +417,21 @@ class OptimizedShotMapApp:
         # Sidebar
         st.sidebar.header("🎯 Filters")
         
-        # League selection (multiple selection)
+        # League selection
         leagues = list(self.league_files.keys())
-        selected_leagues = st.sidebar.multiselect("Select Leagues", leagues, default=leagues[:1])
+        selected_league = st.sidebar.selectbox("Select League", leagues)
         
-        if not selected_leagues:
-            st.warning("Please select at least one league.")
-            st.stop()
-        
-        # Load data for all selected leagues
-        all_shot_data = pd.DataFrame()
-        with st.spinner(f"Loading data for {len(selected_leagues)} league(s)..."):
-            for league in selected_leagues:
-                shot_data = self.load_shot_data(league)
-                if not shot_data.empty:
-                    all_shot_data = pd.concat([all_shot_data, shot_data], ignore_index=True)
-            
+        # Load data
+        with st.spinner(f"Loading {selected_league} data..."):
+            shot_data = self.load_shot_data(selected_league)
             player_stats = self.load_player_stats()
         
-        if all_shot_data.empty or player_stats.empty:
+        if shot_data.empty or player_stats.empty:
             st.error("Could not load data. Please ensure preprocessed files are available.")
             st.stop()
         
-        # Filter player stats by selected leagues
-        league_player_stats = player_stats[player_stats['league'].isin(selected_leagues)]
+        # Filter player stats by league
+        league_player_stats = player_stats[player_stats['league'] == selected_league]
         
         # Team selection
         teams = sorted(league_player_stats['team'].unique())
@@ -443,11 +456,6 @@ class OptimizedShotMapApp:
             value=0, 
             step=50
         )
-        
-        # FIXED: Store filtered data in session state AFTER min_minutes is defined
-        st.session_state.filtered_stats_for_scatter = league_player_stats
-        st.session_state.selected_teams_for_scatter = selected_teams
-        st.session_state.min_minutes_for_scatter = min_minutes
         
         # Filter players by minimum minutes
         eligible_players = filtered_player_stats[filtered_player_stats['minutes_played'] >= min_minutes]
@@ -477,10 +485,7 @@ class OptimizedShotMapApp:
             st.subheader("📊 Shot Map Visualization")
             if selected_player:
                 with st.spinner("Creating shot map..."):
-                    # For shot map, we need to find which league this player belongs to
-                    player_league = league_player_stats[league_player_stats['player'] == selected_player]['league'].iloc[0]
-                    player_shot_data = self.load_shot_data(player_league)
-                    result = self.create_shot_map(player_shot_data, league_player_stats, selected_player, max_time)
+                    result = self.create_shot_map(shot_data, league_player_stats, selected_player, max_time)
                 
                 if result and result[0] is not None:
                     plot_data, download_data = result
@@ -507,9 +512,7 @@ class OptimizedShotMapApp:
                 player_info = league_player_stats[league_player_stats['player'] == selected_player].iloc[0]
                 
                 # Calculate filtered stats
-                player_league = league_player_stats[league_player_stats['player'] == selected_player]['league'].iloc[0]
-                player_shot_data = self.load_shot_data(player_league)
-                filtered_stats = self.calculate_filtered_stats(player_shot_data, selected_player, max_time)
+                filtered_stats = self.calculate_filtered_stats(shot_data, selected_player, max_time)
                 
                 # Display metrics with context
                 if max_time is not None:
@@ -525,9 +528,7 @@ class OptimizedShotMapApp:
                 
                 # Show context about timing data
                 if max_time is not None:
-                    player_league = league_player_stats[league_player_stats['player'] == selected_player]['league'].iloc[0]
-                    player_shot_data = self.load_shot_data(player_league)
-                    all_player_shots = player_shot_data[player_shot_data['player'] == selected_player]
+                    all_player_shots = shot_data[shot_data['player'] == selected_player]
                     total_shots = len(all_player_shots)
                     shots_with_timing = len(all_player_shots[all_player_shots['TimeToShot'].notna()])
                     st.markdown(f"**Context:** {shots_with_timing}/{total_shots} total shots have timing data")
@@ -542,9 +543,7 @@ class OptimizedShotMapApp:
             
             # Calculate filtered stats if time filter is applied
             if max_time is not None:
-                player_league = player_row['league']
-                player_shot_data = self.load_shot_data(player_league)
-                filtered_stats = self.calculate_filtered_stats(player_shot_data, player_name, max_time)
+                filtered_stats = self.calculate_filtered_stats(shot_data, player_name, max_time)
                 filtered_shots = filtered_stats['total_shots']
                 filtered_goals = filtered_stats['total_goals']
                 filtered_conv = filtered_stats['conversion_rate']
@@ -580,3 +579,27 @@ class OptimizedShotMapApp:
         if max_time is not None and 'Filtered Conv. %' in formatted_df.columns:
             formatted_df['Filtered Conv. %'] = formatted_df['Filtered Conv. %'].apply(
                 lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x
+            )
+        
+        st.dataframe(formatted_df, use_container_width=True)
+        
+        # Show summary stats
+        total_eligible = len(eligible_players)
+        total_league = len(league_player_stats)
+        st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
+        
+        # Sidebar social links
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("### Connect")
+            st.markdown("- 🐦 [Twitter](https://twitter.com/pranav_m28)")
+            st.markdown("- 🔗 [GitHub](https://github.com/pranavm28)")
+            st.markdown("- ❤️ [BuyMeACoffee](https://buymeacoffee.com/pranav_m28)")
+
+def main():
+    """Main execution function."""
+    app = OptimizedShotMapApp()
+    app.run()
+
+if __name__ == "__main__":
+    main()
