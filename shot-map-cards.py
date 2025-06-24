@@ -215,10 +215,10 @@ class OptimizedShotMapApp:
     
     def run(self):
         """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis - Optimized", layout="wide")
+        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
         
-        st.title("⚽ Shot Map Analysis Tool - Optimized")
-        st.markdown("*Lightning fast analysis using preprocessed data*")
+        st.title("⚽ Shot Map Analysis Tool")
+        #st.markdown("*Lightning fast analysis using preprocessed data*")
         
         # Sidebar
         st.sidebar.header("🎯 Filters")
@@ -330,7 +330,7 @@ class OptimizedShotMapApp:
                 st.metric("Minutes Played", f"{int(player_info['minutes_played'])}")
                 st.metric("Shots/90", f"{player_info['shots_per_90']:.2f}")
                 st.metric("Goals/90", f"{player_info['goals_per_90']:.2f}")
-                st.metric("Avg. Time to Shoot", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
+                st.metric("Avg. Time to Shoot (after rec. a pass)", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
                 
                 # Show context about timing data
                 if max_time is not None:
