@@ -9,8 +9,6 @@ from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 from pathlib import Path
-import plotly.express as px
-import plotly.graph_objects as go
 
 # Font setup
 try:
@@ -190,12 +188,12 @@ class OptimizedShotMapApp:
         plt.gca().invert_yaxis()
         
         # Title - Updated to reflect that only shots after passes are shown when filtered
-        time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
+        time_filter_text = f" (shots within {max_time}s after receiving pass)" if max_time is not None else ""
         fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
         fig_text(0.512, 0.928,
-                 f"{player_team} | {int(player_minutes)} Minutes | Shot Map Card{time_filter_text} | Made by @pranav_m28",
+                 f"{player_team} | {int(player_minutes)} Mins Played | Shot Map Card{time_filter_text} | Made by @pranav_m28",
                  font='Arial Rounded MT Bold', size=24,
                  ha="center", color="#FFFFFF", fontweight='bold')
         
@@ -215,205 +213,13 @@ class OptimizedShotMapApp:
         plt.close(fig)
         return plot_data, download_data
     
-    def get_scatter_plot_fields(self, player_stats: pd.DataFrame) -> list:
-        """Get available numeric fields for scatter plot."""
-        # Exclude non-numeric and identifier fields
-        exclude_fields = ['player', 'team', 'league', 'minutes_played']
-        numeric_fields = []
-        
-        for col in player_stats.columns:
-            if col not in exclude_fields and pd.api.types.is_numeric_dtype(player_stats[col]):
-                numeric_fields.append(col)
-        
-        return sorted(numeric_fields)
-    
-    def create_scatter_plot(self, player_stats: pd.DataFrame, x_field: str, y_field: str, 
-                           min_minutes: int = 0, selected_teams: list = None) -> go.Figure:
-        """Create interactive scatter plot using Plotly."""
-        # Filter data
-        filtered_data = player_stats[player_stats['minutes_played'] >= min_minutes].copy()
-        
-        if selected_teams:
-            filtered_data = filtered_data[filtered_data['team'].isin(selected_teams)]
-        
-        if filtered_data.empty:
-            return None
-        
-        # Create scatter plot
-        fig = px.scatter(
-            filtered_data,
-            x=x_field,
-            y=y_field,
-            color='team',
-            hover_name='player',
-            hover_data={
-                'team': True,
-                'minutes_played': ':.0f',
-                x_field: ':.2f',
-                y_field: ':.2f'
-            },
-            title=f"{y_field.replace('_', ' ').title()} vs {x_field.replace('_', ' ').title()}",
-            labels={
-                x_field: x_field.replace('_', ' ').title(),
-                y_field: y_field.replace('_', ' ').title()
-            }
-        )
-        
-        # Update layout
-        fig.update_layout(
-            template='plotly_dark',
-            width=800,
-            height=600,
-            title_font_size=16,
-            showlegend=True,
-            legend=dict(
-                orientation="v",
-                yanchor="top",
-                y=1,
-                xanchor="left",
-                x=1.02
-            )
-        )
-        
-        # Update traces
-        fig.update_traces(
-            marker=dict(size=8, opacity=0.7),
-            hovertemplate='<b>%{hovertext}</b><br>' +
-                         'Team: %{customdata[0]}<br>' +
-                         'Minutes: %{customdata[1]:.0f}<br>' +
-                         f'{x_field.replace("_", " ").title()}: %{{x:.2f}}<br>' +
-                         f'{y_field.replace("_", " ").title()}: %{{y:.2f}}<br>' +
-                         '<extra></extra>'
-        )
-        
-        return fig
-    
-    def render_scatter_plot_tab(self):
-        """Render the scatter plot analysis tab."""
-        st.header("📊 Interactive Scatter Plot Analysis")
-        st.markdown("*Explore relationships between different player statistics*")
-        
-        # Load player stats
-        player_stats = self.load_player_stats()
-        if player_stats.empty:
-            st.error("Could not load player statistics.")
-            return
-        
-        # Sidebar controls for scatter plot
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("📈 Scatter Plot Controls")
-        
-        # League selection for scatter plot (multiple selection)
-        leagues = list(self.league_files.keys())
-        scatter_leagues = st.sidebar.multiselect("Select Leagues", leagues, default=leagues[:1], key="scatter_leagues")
-        
-        if not scatter_leagues:
-            st.warning("Please select at least one league.")
-            return
-        
-        # Filter by selected leagues
-        league_stats = player_stats[player_stats['league'].isin(scatter_leagues)]
-        
-        # Team selection for scatter plot
-        teams = sorted(league_stats['team'].unique())
-        scatter_teams = st.sidebar.multiselect("Select Teams", teams, default=teams, key="scatter_teams")
-        
-        if not scatter_teams:
-            st.warning("Please select at least one team.")
-            return
-        
-        # Minimum minutes for scatter plot
-        max_minutes = int(league_stats['minutes_played'].max()) if len(league_stats) > 0 else 1000
-        scatter_min_minutes = st.sidebar.slider(
-            "Minimum Minutes", 
-            min_value=0, 
-            max_value=max_minutes,
-            value=0, 
-            step=50,
-            key="scatter_min_minutes"
-        )
-        
-        # Get available fields
-        available_fields = self.get_scatter_plot_fields(league_stats)
-        
-        if len(available_fields) < 2:
-            st.error("Not enough numeric fields available for scatter plot.")
-            return
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            x_field = st.selectbox("X-Axis", available_fields, index=0)
-        
-        with col2:
-            # Default Y-axis to second field if available
-            default_y = 1 if len(available_fields) > 1 else 0
-            y_field = st.selectbox("Y-Axis", available_fields, index=default_y)
-        
-        if x_field == y_field:
-            st.warning("Please select different fields for X and Y axes.")
-            return
-        
-        # Create and display scatter plot
-        with st.spinner("Creating scatter plot..."):
-            fig = self.create_scatter_plot(
-                league_stats, 
-                x_field, 
-                y_field, 
-                scatter_min_minutes, 
-                scatter_teams
-            )
-        
-        if fig is not None:
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Show correlation
-            filtered_stats = league_stats[
-                (league_stats['minutes_played'] >= scatter_min_minutes) & 
-                (league_stats['team'].isin(scatter_teams))
-            ]
-            
-            if len(filtered_stats) > 1:
-                correlation = filtered_stats[x_field].corr(filtered_stats[y_field])
-                st.info(f"📊 Correlation coefficient: {correlation:.3f}")
-            
-            # Summary stats
-            st.subheader("📋 Summary Statistics")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write(f"**{x_field.replace('_', ' ').title()}**")
-                st.write(f"Mean: {filtered_stats[x_field].mean():.3f}")
-                st.write(f"Median: {filtered_stats[x_field].median():.3f}")
-                st.write(f"Std Dev: {filtered_stats[x_field].std():.3f}")
-            
-            with col2:
-                st.write(f"**{y_field.replace('_', ' ').title()}**")
-                st.write(f"Mean: {filtered_stats[y_field].mean():.3f}")
-                st.write(f"Median: {filtered_stats[y_field].median():.3f}")
-                st.write(f"Std Dev: {filtered_stats[y_field].std():.3f}")
-            
-            st.write(f"**Total players shown:** {len(filtered_stats)}")
-        else:
-            st.error("Could not create scatter plot with the selected parameters.")
-    
     def run(self):
         """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
+        st.set_page_config(page_title="Shot Map Analysis - Optimized", layout="wide")
         
-        st.title("⚽ Shot Map Analysis Tool")
+        st.title("⚽ Shot Map Analysis Tool - Optimized")
+        st.markdown("*Lightning fast analysis using preprocessed data*")
         
-        # Create tabs
-        tab1, tab2 = st.tabs(["🎯 Shot Map Analysis", "📊 Scatter Plot Analysis"])
-        
-        with tab1:
-            self.render_shot_map_tab()
-        
-        with tab2:
-            self.render_scatter_plot_tab()
-    
-    def render_shot_map_tab(self):
-        """Render the original shot map analysis tab."""
         # Sidebar
         st.sidebar.header("🎯 Filters")
         
@@ -524,7 +330,7 @@ class OptimizedShotMapApp:
                 st.metric("Minutes Played", f"{int(player_info['minutes_played'])}")
                 st.metric("Shots/90", f"{player_info['shots_per_90']:.2f}")
                 st.metric("Goals/90", f"{player_info['goals_per_90']:.2f}")
-                st.metric("Avg. Time to Shoot (after rec. a pass)", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
+                st.metric("Avg. Time to Shoot", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
                 
                 # Show context about timing data
                 if max_time is not None:
@@ -587,6 +393,17 @@ class OptimizedShotMapApp:
         total_eligible = len(eligible_players)
         total_league = len(league_player_stats)
         st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
+        
+        # Performance insights
+        if max_time is not None:
+            st.subheader("🔍 Time Filter Insights")
+            valid_filtered_shots = [x for x in summary_df['Filtered Shots'] if x != 'N/A' and x > 0]
+            if valid_filtered_shots:
+                avg_filtered_shots = sum(valid_filtered_shots) / len(valid_filtered_shots)
+                st.write(f"Average shots within {max_time}s after receiving pass: {avg_filtered_shots:.1f}")
+                st.write(f"Players with shots in this timeframe: {len(valid_filtered_shots)}")
+            else:
+                st.write("No players have shots within the selected timeframe")
         
         # Sidebar social links
         with st.sidebar:
