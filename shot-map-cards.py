@@ -9,6 +9,7 @@ from highlight_text import fig_text
 import matplotlib as mpl
 import matplotlib.font_manager as fm
 from pathlib import Path
+import seaborn as sns
 
 # Font setup
 try:
@@ -213,39 +214,268 @@ class OptimizedShotMapApp:
         plt.close(fig)
         return plot_data, download_data
     
-    def run(self):
-        """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
+    def analyze_time_distribution(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, 
+                                selected_teams: list, min_minutes: int) -> pd.DataFrame:
+        """Analyze shot distribution by time periods."""
+        # Filter players by teams and minutes
+        eligible_players = player_stats[
+            (player_stats['team'].isin(selected_teams)) & 
+            (player_stats['minutes_played'] >= min_minutes)
+        ]['player'].tolist()
         
-        st.title("⚽ Shot Map Analysis Tool")
+        # Filter shot data for eligible players and shots with timing data
+        filtered_shots = shot_data[
+            (shot_data['player'].isin(eligible_players)) & 
+            (shot_data['TimeToShot'].notna())
+        ].copy()
         
+        if filtered_shots.empty:
+            return pd.DataFrame()
         
-        # Sidebar
-        st.sidebar.header("🎯 Filters")
+        # Define time bins
+        bins = [0, 1, 2, 3, 4, 5, 7.5, 10, float('inf')]
+        labels = ['0-1s', '1-2s', '2-3s', '3-4s', '4-5s', '5-7.5s', '7.5-10s', '10s+']
         
-        # League selection
-        leagues = list(self.league_files.keys())
-        selected_league = st.sidebar.selectbox("Select League", leagues)
+        # Create time categories
+        filtered_shots['time_category'] = pd.cut(filtered_shots['TimeToShot'], 
+                                       bins=bins, labels=labels, right=False, ordered=True)
         
-        # Load data
-        with st.spinner(f"Loading {selected_league} data..."):
-            shot_data = self.load_shot_data(selected_league)
-            player_stats = self.load_player_stats()
+        # Group by player and time category
+        distribution_data = []
         
-        if shot_data.empty or player_stats.empty:
-            st.error("Could not load data. Please ensure preprocessed files are available.")
-            st.stop()
+        for player in eligible_players:
+            player_shots = filtered_shots[filtered_shots['player'] == player]
+            player_info = player_stats[player_stats['player'] == player].iloc[0]
+            
+            if len(player_shots) == 0:
+                continue
+                
+            for category in labels:
+                category_shots = player_shots[player_shots['time_category'] == category]
+                shots_count = len(category_shots)
+                goals_count = len(category_shots[category_shots['is_goal'] == True])
+                
+                distribution_data.append({
+                    'player': player,
+                    'team': player_info['team'],
+                    'minutes_played': player_info['minutes_played'],
+                    'time_category': category,
+                    'shots': shots_count,
+                    'goals': goals_count,
+                    'conversion_rate': (goals_count / shots_count * 100) if shots_count > 0 else 0
+                })
         
+        return pd.DataFrame(distribution_data)
+    
+    def create_time_distribution_chart(self, distribution_df: pd.DataFrame, 
+                                     chart_type: str, selected_players: list = None) -> tuple:
+        """Create time distribution visualization."""
+        if distribution_df.empty:
+            return None, None
+        
+        # Filter by selected players if specified
+        if selected_players:
+            distribution_df = distribution_df[distribution_df['player'].isin(selected_players)]
+        
+        if distribution_df.empty:
+            return None, None
+        
+        # Aggregate data by time category
+        agg_data = distribution_df.groupby('time_category').agg({
+            'shots': 'sum',
+            'goals': 'sum'
+        }).reset_index()
+        
+        # Calculate conversion rate
+        agg_data['conversion_rate'] = (agg_data['goals'] / agg_data['shots'] * 100).fillna(0)
+        
+        # Create the plot based on chart type
+        plt.style.use('dark_background')
+
+        category_order = ['0-1s', '1-2s', '2-3s', '3-4s', '4-5s', '5-7.5s', '7.5-10s', '10s+']
+        agg_data['time_category'] = pd.Categorical(agg_data['time_category'], categories=category_order, ordered=True)
+        agg_data = agg_data.sort_values('time_category')
+        
+        if chart_type == "Bar Chart":
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+            fig.patch.set_facecolor('#181818')
+            
+            # Shots bar chart
+            bars1 = ax1.bar(agg_data['time_category'], agg_data['shots'], 
+                           color='#FF5959', alpha=0.8, edgecolor='white', linewidth=1)
+            ax1.set_title('Shot Distribution by Time Category', fontsize=16, fontweight='bold', color='white')
+            ax1.set_ylabel('Number of Shots', fontsize=12, color='white')
+            ax1.tick_params(colors='white')
+            ax1.set_facecolor('#181818')
+            
+            # Add value labels on bars
+            for bar in bars1:
+                height = bar.get_height()
+                ax1.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                        f'{int(height)}', ha='center', va='bottom', color='white', fontweight='bold')
+            
+            # Goals bar chart
+            bars2 = ax2.bar(agg_data['time_category'], agg_data['goals'], 
+                           color='#8ff00f', alpha=0.8, edgecolor='white', linewidth=1)
+            ax2.set_title('Goal Distribution by Time Category', fontsize=16, fontweight='bold', color='white')
+            ax2.set_ylabel('Number of Goals', fontsize=12, color='white')
+            ax2.set_xlabel('Time to Shoot', fontsize=12, color='white')
+            ax2.tick_params(colors='white')
+            ax2.set_facecolor('#181818')
+            
+            # Add value labels on bars
+            for bar in bars2:
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height + 0.05,
+                        f'{int(height)}', ha='center', va='bottom', color='white', fontweight='bold')
+            
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+        
+        elif chart_type == "Stacked Bar":
+            fig, ax = plt.subplots(figsize=(12, 8))
+            fig.patch.set_facecolor('#181818')
+            ax.set_facecolor('#181818')
+            
+            # Create stacked bar chart
+            width = 0.6
+            x_pos = range(len(agg_data))
+            
+            # Goals (bottom)
+            bars1 = ax.bar(x_pos, agg_data['goals'], width, 
+                          color='#8ff00f', alpha=0.8, label='Goals', edgecolor='white', linewidth=1)
+            
+            # Shots minus goals (top)
+            shots_minus_goals = agg_data['shots'] - agg_data['goals']
+            bars2 = ax.bar(x_pos, shots_minus_goals, width, bottom=agg_data['goals'],
+                          color='#FF5959', alpha=0.8, label='Shots (no goal)', edgecolor='white', linewidth=1)
+            
+            ax.set_title('Shot vs Goal Distribution by Time Category', fontsize=16, fontweight='bold', color='white')
+            ax.set_ylabel('Count', fontsize=12, color='white')
+            ax.set_xlabel('Time to Shoot', fontsize=12, color='white')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(agg_data['time_category'], rotation=45)
+            ax.tick_params(colors='white')
+            ax.legend(loc='upper right')
+            
+            # Add conversion rate labels on top of bars
+            for i, (shots, goals, conv_rate) in enumerate(zip(agg_data['shots'], agg_data['goals'], agg_data['conversion_rate'])):
+                ax.text(i, shots + 1, f'{conv_rate:.1f}%', ha='center', va='bottom', 
+                       color='white', fontweight='bold', fontsize=10)
+            
+            plt.tight_layout()
+        
+        elif chart_type == "Conversion Rate Line":
+            fig, ax = plt.subplots(figsize=(12, 8))
+            fig.patch.set_facecolor('#181818')
+            ax.set_facecolor('#181818')
+            
+            # Line plot for conversion rate
+            ax.plot(agg_data['time_category'], agg_data['conversion_rate'], 
+                   color='#00D4FF', marker='o', linewidth=3, markersize=8, alpha=0.9)
+            
+            # Fill area under the line
+            ax.fill_between(agg_data['time_category'], agg_data['conversion_rate'], 
+                           alpha=0.3, color='#00D4FF')
+            
+            ax.set_title('Conversion Rate by Time to Shoot', fontsize=16, fontweight='bold', color='white')
+            ax.set_ylabel('Conversion Rate (%)', fontsize=12, color='white')
+            ax.set_xlabel('Time to Shoot', fontsize=12, color='white')
+            ax.tick_params(colors='white')
+            
+            # Add value labels on points
+            for i, (cat, rate) in enumerate(zip(agg_data['time_category'], agg_data['conversion_rate'])):
+                ax.text(i, rate + 0.5, f'{rate:.1f}%', ha='center', va='bottom', 
+                       color='white', fontweight='bold')
+            
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+        
+        # Save plots
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', facecolor='#181818', edgecolor='none', dpi=300, bbox_inches='tight')
+        buffer.seek(0)
+        plot_data = base64.b64encode(buffer.read()).decode()
+        
+        download_buffer = io.BytesIO()
+        plt.savefig(download_buffer, format='png', facecolor='#181818', edgecolor='none', dpi=400, bbox_inches='tight')
+        download_buffer.seek(0)
+        download_data = download_buffer.getvalue()
+        
+        plt.close(fig)
+        return plot_data, download_data
+    """
+    def create_player_comparison_heatmap(self, distribution_df: pd.DataFrame, top_n: int = 15) -> tuple:
+        
+        if distribution_df.empty:
+            return None, None
+        
+        # Get top players by total shots with timing data
+        player_totals = distribution_df.groupby('player')['shots'].sum().sort_values(ascending=False)
+        top_players = player_totals.head(top_n).index.tolist()
+        
+        # Filter for top players
+        filtered_df = distribution_df[distribution_df['player'].isin(top_players)]
+        
+        # Create pivot table for heatmap
+        heatmap_data = filtered_df.pivot_table(
+            index='player', 
+            columns='time_category', 
+            values='shots', 
+            fill_value=0
+        )
+        
+        # Reorder columns properly
+        desired_order = ['0-1s', '1-2s', '2-3s', '3-4s', '4-5s', '5-7.5s', '7.5-10s', '10s+']
+        heatmap_data = heatmap_data.reindex(columns=[col for col in desired_order if col in heatmap_data.columns])
+        
+        # Create the heatmap
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(12, 10))
+        fig.patch.set_facecolor('#181818')
+        
+        # Create heatmap
+        sns.heatmap(heatmap_data, annot=True, fmt='d', cmap='Reds', 
+                   cbar_kws={'label': 'Number of Shots'}, ax=ax,
+                   linewidths=0.5, linecolor='white')
+        
+        ax.set_title(f'Shot Distribution Heatmap - Top {top_n} Players', 
+                    fontsize=16, fontweight='bold', color='white', pad=20)
+        ax.set_xlabel('Time to Shoot', fontsize=12, color='white')
+        ax.set_ylabel('Player', fontsize=12, color='white')
+        ax.tick_params(colors='white')
+        
+        # Rotate x-axis labels
+        plt.xticks(rotation=45)
+        plt.yticks(rotation=0)
+        plt.tight_layout()
+        
+        # Save plots
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', facecolor='#181818', edgecolor='none', dpi=300, bbox_inches='tight')
+        buffer.seek(0)
+        plot_data = base64.b64encode(buffer.read()).decode()
+        
+        download_buffer = io.BytesIO()
+        plt.savefig(download_buffer, format='png', facecolor='#181818', edgecolor='none', dpi=400, bbox_inches='tight')
+        download_buffer.seek(0)
+        download_data = download_buffer.getvalue()
+        
+        plt.close(fig)
+        return plot_data, download_data
+    """
+    def run_shot_map_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str):
+        """Run the shot map analysis tab."""
         # Filter player stats by league
         league_player_stats = player_stats[player_stats['league'] == selected_league]
         
         # Team selection
         teams = sorted(league_player_stats['team'].unique())
-        selected_teams = st.sidebar.multiselect("Select Teams", teams, default=teams)
+        selected_teams = st.sidebar.multiselect("Select Teams", teams, default=teams, key="shotmap_teams")
         
         if not selected_teams:
             st.warning("Please select at least one team.")
-            st.stop()
+            return
         
         # Filter by selected teams
         filtered_player_stats = league_player_stats[league_player_stats['team'].isin(selected_teams)]
@@ -260,7 +490,8 @@ class OptimizedShotMapApp:
             min_value=0, 
             max_value=max_minutes,
             value=0, 
-            step=50
+            step=50,
+            key="shotmap_min_minutes"
         )
         
         # Filter players by minimum minutes
@@ -268,21 +499,22 @@ class OptimizedShotMapApp:
         
         if len(eligible_players) == 0:
             st.warning(f"No players found with at least {min_minutes} minutes played.")
-            st.stop()
+            return
         
         # Player selection
         players = sorted(eligible_players['player'].unique())
-        selected_player = st.sidebar.selectbox("Select Player", players)
+        selected_player = st.sidebar.selectbox("Select Player", players, key="shotmap_player")
         
         # Time filter
         st.sidebar.markdown("---")
         st.sidebar.subheader("⏱️ Shot Timing Filter")
         st.sidebar.info("ℹ️ Time filter only shows shots taken after receiving a pass from a teammate (excludes penalties, free kicks, etc.)")
-        use_time_filter = st.sidebar.checkbox("Filter by Time to Shoot")
+        use_time_filter = st.sidebar.checkbox("Filter by Time to Shoot", key="shotmap_time_filter")
         max_time = None
         if use_time_filter:
             max_time = st.sidebar.slider("Maximum Time to Shoot (seconds)", 
-                                       min_value=0.5, max_value=10.0, value=5.0, step=0.5)
+                                       min_value=0.5, max_value=10.0, value=5.0, step=0.5,
+                                       key="shotmap_max_time")
         
         # Main content
         col1, col2 = st.columns([2, 1])
@@ -393,17 +625,244 @@ class OptimizedShotMapApp:
         total_eligible = len(eligible_players)
         total_league = len(league_player_stats)
         st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
+    
+    def run_time_distribution_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str):
+        """Run the time distribution analysis tab."""
+        st.header("⏱️ Shot Time Distribution Analysis")
+        st.markdown("Analyze how quickly players shoot after receiving the ball from teammates")
         
-        # Performance insights
-        #if max_time is not None:
-         #   st.subheader("🔍 Time Filter Insights")
-          #  valid_filtered_shots = [x for x in summary_df['Filtered Shots'] if x != 'N/A' and x > 0]
-           # if valid_filtered_shots:
-            #    avg_filtered_shots = sum(valid_filtered_shots) / len(valid_filtered_shots)
-             #   st.write(f"Average shots within {max_time}s after receiving pass: {avg_filtered_shots:.1f}")
-              #  st.write(f"Players with shots in this timeframe: {len(valid_filtered_shots)}")
-            #else:
-             #   st.write("No players have shots within the selected timeframe")
+        # Filter player stats by league
+        league_player_stats = player_stats[player_stats['league'] == selected_league]
+        
+        # Sidebar filters for time distribution
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Distribution Filters")
+        
+        # Team selection
+        teams = sorted(league_player_stats['team'].unique())
+        selected_teams_dist = st.sidebar.multiselect("Select Teams", teams, default=teams, key="dist_teams")
+        
+        if not selected_teams_dist:
+            st.warning("Please select at least one team.")
+            return
+        
+        # Minimum minutes filter
+        filtered_player_stats = league_player_stats[league_player_stats['team'].isin(selected_teams_dist)]
+        max_minutes = int(filtered_player_stats['minutes_played'].max()) if len(filtered_player_stats) > 0 else 1000
+        min_minutes_dist = st.sidebar.slider(
+            "Minimum Minutes Played", 
+            min_value=0, 
+            max_value=max_minutes,
+            value=300, 
+            step=50,
+            key="dist_min_minutes"
+        )
+        
+        # Analyze time distribution
+        with st.spinner("Analyzing time distribution..."):
+            distribution_df = self.analyze_time_distribution(
+                shot_data, league_player_stats, selected_teams_dist, min_minutes_dist
+            )
+        
+        if distribution_df.empty:
+            st.error("No timing data available for the selected filters.")
+            return
+        
+        # Show overview metrics
+        total_shots_with_timing = distribution_df['shots'].sum()
+        total_goals_with_timing = distribution_df['goals'].sum()
+        overall_conversion = (total_goals_with_timing / total_shots_with_timing * 100) if total_shots_with_timing > 0 else 0
+        unique_players = distribution_df['player'].nunique()
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Players Analyzed", unique_players)
+        with col2:
+            st.metric("Total Shots", total_shots_with_timing)
+        with col3:
+            st.metric("Total Goals", total_goals_with_timing)
+        with col4:
+            st.metric("Overall Conversion", f"{overall_conversion:.1f}%")
+        
+        st.markdown("---")
+        
+        # Chart options
+        col1, col2 = st.columns([2, 1])
+        
+        with col2:
+            st.subheader("📊 Visualization Options")
+            
+            chart_type = st.selectbox(
+                "Select Chart Type",
+                ["Bar Chart", "Stacked Bar", "Conversion Rate Line"],
+                help="Choose how to visualize the time distribution data"
+            )
+            
+            # Player filter for individual analysis
+            st.markdown("**Player-Specific Analysis:**")
+            all_players = sorted(distribution_df['player'].unique())
+            selected_players_analysis = st.multiselect(
+                "Filter by specific players (leave empty for all)",
+                all_players,
+                help="Select specific players to analyze their time distribution"
+            )
+            
+            # Show heatmap option
+            #show_heatmap = st.checkbox("Show Player Comparison Heatmap", value=True)
+            #if show_heatmap:
+             #   top_n_players = st.slider("Top N players for heatmap", 5, 25, 15)
+        
+        with col1:
+            st.subheader("📈 Time Distribution Charts")
+            
+            # Create and display main chart
+            with st.spinner("Creating visualization..."):
+                chart_result = self.create_time_distribution_chart(
+                    distribution_df, chart_type, selected_players_analysis
+                )
+            
+            if chart_result and chart_result[0] is not None:
+                plot_data, download_data = chart_result
+                st.image(f"data:image/png;base64,{plot_data}")
+                
+                # Download button
+                players_suffix = f"_{'_'.join(selected_players_analysis[:2])}" if selected_players_analysis else "_all_players"
+                chart_filename = f"time_distribution_{chart_type.lower().replace(' ', '_')}{players_suffix}.png"
+                
+                st.download_button(
+                    label="📥 Download Chart",
+                    data=download_data,
+                    file_name=chart_filename,
+                    mime="image/png"
+                )
+            else:
+                st.error("Could not generate chart with selected filters.")
+        
+        # Player comparison heatmap
+        # """        
+        # if show_heatmap:
+        #     st.markdown("---")
+        #     st.subheader("🔥 Player Comparison Heatmap")
+            
+        #     with st.spinner("Creating heatmap..."):
+        #         heatmap_result = self.create_player_comparison_heatmap(distribution_df, top_n_players)
+            
+        #     if heatmap_result and heatmap_result[0] is not None:
+        #         heatmap_plot, heatmap_download = heatmap_result
+        #         st.image(f"data:image/png;base64,{heatmap_plot}")
+                
+        #         st.download_button(
+        #             label="📥 Download Heatmap",
+        #             data=heatmap_download,
+        #             file_name=f"player_time_distribution_heatmap_top_{top_n_players}.png",
+        #             mime="image/png"
+        #         )
+        #     else:
+        #         st.error("Could not generate heatmap.")
+        # """
+        # Detailed statistics table
+        st.markdown("---")
+        st.subheader("📊 Detailed Time Distribution Statistics")
+        
+        # Create summary by player
+        player_summary = distribution_df.groupby(['player', 'team']).agg({
+            'shots': 'sum',
+            'goals': 'sum',
+            'minutes_played': 'first'
+        }).reset_index()
+        
+        player_summary['conversion_rate'] = (player_summary['goals'] / player_summary['shots'] * 100).fillna(0)
+        player_summary = player_summary.sort_values('shots', ascending=False)
+        
+        # Format for display
+        display_summary = player_summary.copy()
+        display_summary['conversion_rate'] = display_summary['conversion_rate'].apply(lambda x: f"{x:.1f}%")
+        display_summary['minutes_played'] = display_summary['minutes_played'].apply(lambda x: int(x))
+        
+        display_summary.columns = ['Player', 'Team', 'Shots (w/ timing)', 'Goals (w/ timing)', 'Minutes', 'Conversion Rate']
+        
+        st.dataframe(display_summary, use_container_width=True)
+        
+        # Time category breakdown
+        st.subheader("⏰ Time Category Breakdown")
+        
+        category_summary = distribution_df.groupby('time_category').agg({
+            'shots': 'sum',
+            'goals': 'sum'
+        }).reset_index()
+        
+        category_summary['conversion_rate'] = (category_summary['goals'] / category_summary['shots'] * 100).fillna(0)
+        category_summary['percentage_of_total'] = (category_summary['shots'] / category_summary['shots'].sum() * 100)
+        
+        # Format for display
+        display_category = category_summary.copy()
+        display_category['conversion_rate'] = display_category['conversion_rate'].apply(lambda x: f"{x:.1f}%")
+        display_category['percentage_of_total'] = display_category['percentage_of_total'].apply(lambda x: f"{x:.1f}%")
+        
+        display_category.columns = ['Time Category', 'Total Shots', 'Total Goals', 'Conversion Rate', '% of All Shots']
+        
+        st.dataframe(display_category, use_container_width=True)
+        
+        # Key insights
+        st.markdown("---")
+        st.subheader("🎯 Key Insights")
+        
+        # Find best conversion rate category
+        best_conversion_cat = category_summary.loc[category_summary['conversion_rate'].idxmax(), 'time_category']
+        best_conversion_rate = category_summary['conversion_rate'].max()
+        
+        # Find most common shooting time
+        most_common_cat = category_summary.loc[category_summary['shots'].idxmax(), 'time_category']
+        most_common_shots = category_summary['shots'].max()
+        
+        # Quick vs slow shooters
+        quick_shots = category_summary[category_summary['time_category'].isin(['0-1s', '1-2s', '2-3s'])]['shots'].sum()
+        slow_shots = category_summary[category_summary['time_category'].isin(['5-7.5s', '7.5-10s', '10s+'])]['shots'].sum()
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.info(f"**Best Conversion Rate:** {best_conversion_cat} ({best_conversion_rate:.1f}%)")
+        
+        with col2:
+            st.info(f"**Most Common Time:** {most_common_cat} ({most_common_shots} shots)")
+        
+        with col3:
+            quick_percentage = (quick_shots / (quick_shots + slow_shots) * 100) if (quick_shots + slow_shots) > 0 else 0
+            st.info(f"**Quick Shooters:** {quick_percentage:.1f}% shoot within 3s")
+    
+    def run(self):
+        """Main app execution."""
+        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
+        
+        st.title("⚽ Shot Map Analysis Tool")
+        
+        # Create tabs
+        tab1, tab2 = st.tabs(["🎯 Shot Maps", "⏱️ Time Distribution"])
+        
+        # Sidebar - Common filters
+        st.sidebar.header("🔧 Settings")
+        
+        # League selection (common for both tabs)
+        leagues = list(self.league_files.keys())
+        selected_league = st.sidebar.selectbox("Select League", leagues)
+        
+        # Load data
+        with st.spinner(f"Loading {selected_league} data..."):
+            shot_data = self.load_shot_data(selected_league)
+            player_stats = self.load_player_stats()
+        
+        if shot_data.empty or player_stats.empty:
+            st.error("Could not load data. Please ensure preprocessed files are available.")
+            st.stop()
+        
+        # Tab 1: Shot Maps
+        with tab1:
+            self.run_shot_map_tab(shot_data, player_stats, selected_league)
+        
+        # Tab 2: Time Distribution
+        with tab2:
+            self.run_time_distribution_tab(shot_data, player_stats, selected_league)
         
         # Sidebar social links
         with st.sidebar:
