@@ -23,6 +23,7 @@ except Exception as e:
     print(f"Font loading error: {e}")
 
 class OptimizedShotMapApp:
+    """Optimized Streamlit app using preprocessed data."""
     
     def __init__(self):
         self.league_files = {
@@ -59,8 +60,9 @@ class OptimizedShotMapApp:
         player_shots = shot_data[shot_data['player'] == player_name].copy()
         
         if max_time is not None:
-            # Filter by time, keeping NaN values (shots without timing data)
-            time_mask = (player_shots['TimeToShot'] <= max_time) | (player_shots['TimeToShot'].isna())
+            # FIXED: Only include shots that have valid timing data AND are within the time limit
+            # This excludes penalties and other shots that weren't preceded by a teammate's pass
+            time_mask = (player_shots['TimeToShot'] <= max_time) & (player_shots['TimeToShot'].notna())
             player_shots = player_shots[time_mask]
         
         return player_shots
@@ -185,8 +187,8 @@ class OptimizedShotMapApp:
         # Invert y-axis
         plt.gca().invert_yaxis()
         
-        # Title
-        time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
+        # Title - Updated to reflect that only shots after passes are shown when filtered
+        time_filter_text = f" (shots within {max_time}s after receiving pass)" if max_time is not None else ""
         fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
@@ -213,10 +215,10 @@ class OptimizedShotMapApp:
     
     def run(self):
         """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
+        st.set_page_config(page_title="Shot Map Analysis - Optimized", layout="wide")
         
-        st.title("⚽ Shot Map Analysis Tool")
-        #st.markdown("*Lightning fast analysis using preprocessed data*")
+        st.title("⚽ Shot Map Analysis Tool - Optimized")
+        st.markdown("*Lightning fast analysis using preprocessed data*")
         
         # Sidebar
         st.sidebar.header("🎯 Filters")
@@ -275,6 +277,7 @@ class OptimizedShotMapApp:
         # Time filter
         st.sidebar.markdown("---")
         st.sidebar.subheader("⏱️ Shot Timing Filter")
+        st.sidebar.info("ℹ️ Time filter only shows shots taken after receiving a pass from a teammate (excludes penalties, free kicks, etc.)")
         use_time_filter = st.sidebar.checkbox("Filter by Time to Shoot")
         max_time = None
         if use_time_filter:
@@ -317,14 +320,24 @@ class OptimizedShotMapApp:
                 # Calculate filtered stats
                 filtered_stats = self.calculate_filtered_stats(shot_data, selected_player, max_time)
                 
-                # Display metrics
+                # Display metrics with context
+                if max_time is not None:
+                    st.info(f"📊 Filtered stats show only shots within {max_time}s after receiving a pass")
+                
                 st.metric("Total Shots", f"{filtered_stats['total_shots']}")
                 st.metric("Goals", f"{filtered_stats['total_goals']}")
                 st.metric("Conversion Rate", f"{filtered_stats['conversion_rate']:.1f}%")
                 st.metric("Minutes Played", f"{int(player_info['minutes_played'])}")
                 st.metric("Shots/90", f"{player_info['shots_per_90']:.2f}")
                 st.metric("Goals/90", f"{player_info['goals_per_90']:.2f}")
-                st.metric("Avg. Time to Shoot (after rec. a pass)", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
+                st.metric("Avg. Time to Shoot", f"{filtered_stats['avg_time_to_shoot']:.2f}s")
+                
+                # Show context about timing data
+                if max_time is not None:
+                    all_player_shots = shot_data[shot_data['player'] == selected_player]
+                    total_shots = len(all_player_shots)
+                    shots_with_timing = len(all_player_shots[all_player_shots['TimeToShot'].notna()])
+                    st.markdown(f"**Context:** {shots_with_timing}/{total_shots} total shots have timing data")
         
         # Summary table
         st.subheader(f"📋 All Players Summary (Min. {min_minutes} minutes)")
@@ -382,10 +395,15 @@ class OptimizedShotMapApp:
         st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
         
         # Performance insights
-        #if max_time is not None:
-         #   st.subheader("🔍 Time Filter Insights")
-          #  avg_filtered_shots = summary_df[summary_df['Filtered Shots'] != 'N/A']['Filtered Shots'].mean()
-           # st.write(f"Average shots within {max_time}s: {avg_filtered_shots:.1f}")
+        if max_time is not None:
+            st.subheader("🔍 Time Filter Insights")
+            valid_filtered_shots = [x for x in summary_df['Filtered Shots'] if x != 'N/A' and x > 0]
+            if valid_filtered_shots:
+                avg_filtered_shots = sum(valid_filtered_shots) / len(valid_filtered_shots)
+                st.write(f"Average shots within {max_time}s after receiving pass: {avg_filtered_shots:.1f}")
+                st.write(f"Players with shots in this timeframe: {len(valid_filtered_shots)}")
+            else:
+                st.write("No players have shots within the selected timeframe")
         
         # Sidebar social links
         with st.sidebar:
