@@ -303,12 +303,16 @@ class OptimizedShotMapApp:
         st.sidebar.markdown("---")
         st.sidebar.subheader("📈 Scatter Plot Controls")
         
-        # League selection for scatter plot
+        # League selection for scatter plot (multiple selection)
         leagues = list(self.league_files.keys())
-        scatter_league = st.sidebar.selectbox("Select League", leagues, key="scatter_league")
+        scatter_leagues = st.sidebar.multiselect("Select Leagues", leagues, default=leagues[:1], key="scatter_leagues")
         
-        # Filter by league
-        league_stats = player_stats[player_stats['league'] == scatter_league]
+        if not scatter_leagues:
+            st.warning("Please select at least one league.")
+            return
+        
+        # Filter by selected leagues
+        league_stats = player_stats[player_stats['league'].isin(scatter_leagues)]
         
         # Team selection for scatter plot
         teams = sorted(league_stats['team'].unique())
