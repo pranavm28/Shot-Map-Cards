@@ -195,7 +195,7 @@ class OptimizedShotMapApp:
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
         fig_text(0.512, 0.928,
-                 f"{player_team} | {int(player_minutes)} Mins Played | Shot Map Card{time_filter_text} | Made by @pranav_m28",
+                 f"{player_team} | {int(player_minutes)} Minutes | Shot Map Card{time_filter_text} | Made by @pranav_m28",
                  font='Arial Rounded MT Bold', size=24,
                  ha="center", color="#FFFFFF", fontweight='bold')
         
