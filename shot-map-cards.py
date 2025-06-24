@@ -574,8 +574,8 @@ class OptimizedShotMapApp:
         with col1:
             st.subheader("📊 Shot Map Visualization")
             if selected_player:
-            with st.spinner("Creating shot map..."):
-             result = self.create_shot_map(shot_data, enhanced_player_stats, selected_player, max_time)
+                with st.spinner("Creating shot map..."):
+                    result = self.create_shot_map(shot_data, enhanced_player_stats, selected_player, max_time)
         
             if result and result[0] is not None:
                 plot_data, download_data = result
