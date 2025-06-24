@@ -13,5 +13,3 @@ polars
 datasets
 gdown
 highlight-text
-plotly.express
-plotly.graph_objects
