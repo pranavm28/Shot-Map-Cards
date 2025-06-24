@@ -14,3 +14,4 @@ datasets
 gdown
 highlight-text
 plotly
+seaborn
