@@ -188,7 +188,7 @@ class OptimizedShotMapApp:
         plt.gca().invert_yaxis()
         
         # Title - Updated to reflect that only shots after passes are shown when filtered
-        time_filter_text = f" (shots within {max_time}s after receiving pass)" if max_time is not None else ""
+        time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
         fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
@@ -215,10 +215,10 @@ class OptimizedShotMapApp:
     
     def run(self):
         """Main app execution."""
-        st.set_page_config(page_title="Shot Map Analysis - Optimized", layout="wide")
+        st.set_page_config(page_title="Shot Map Analysis", layout="wide")
         
-        st.title("⚽ Shot Map Analysis Tool - Optimized")
-        st.markdown("*Lightning fast analysis using preprocessed data*")
+        st.title("⚽ Shot Map Analysis Tool")
+        
         
         # Sidebar
         st.sidebar.header("🎯 Filters")
