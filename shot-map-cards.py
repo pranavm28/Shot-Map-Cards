@@ -431,11 +431,6 @@ class OptimizedShotMapApp:
         # Filter by selected teams
         filtered_player_stats = league_player_stats[league_player_stats['team'].isin(selected_teams)]
         
-        # Store filtered data in session state for scatter plot tab
-        st.session_state.filtered_stats_for_scatter = league_player_stats
-        st.session_state.selected_teams_for_scatter = selected_teams
-        st.session_state.min_minutes_for_scatter = min_minutes
-        
         # Minimum minutes filter
         st.sidebar.markdown("---")
         st.sidebar.subheader("Player Filters")
@@ -448,6 +443,11 @@ class OptimizedShotMapApp:
             value=0, 
             step=50
         )
+        
+        # FIXED: Store filtered data in session state AFTER min_minutes is defined
+        st.session_state.filtered_stats_for_scatter = league_player_stats
+        st.session_state.selected_teams_for_scatter = selected_teams
+        st.session_state.min_minutes_for_scatter = min_minutes
         
         # Filter players by minimum minutes
         eligible_players = filtered_player_stats[filtered_player_stats['minutes_played'] >= min_minutes]
@@ -580,27 +580,3 @@ class OptimizedShotMapApp:
         if max_time is not None and 'Filtered Conv. %' in formatted_df.columns:
             formatted_df['Filtered Conv. %'] = formatted_df['Filtered Conv. %'].apply(
                 lambda x: f"{x:.1f}%" if isinstance(x, (int, float)) else x
-            )
-        
-        st.dataframe(formatted_df, use_container_width=True)
-        
-        # Show summary stats
-        total_eligible = len(eligible_players)
-        total_league = len(league_player_stats)
-        st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
-        
-        # Sidebar social links
-        with st.sidebar:
-            st.markdown("---")
-            st.markdown("### Connect")
-            st.markdown("- 🐦 [Twitter](https://twitter.com/pranav_m28)")
-            st.markdown("- 🔗 [GitHub](https://github.com/pranavm28)")
-            st.markdown("- ❤️ [BuyMeACoffee](https://buymeacoffee.com/pranav_m28)")
-
-def main():
-    """Main execution function."""
-    app = OptimizedShotMapApp()
-    app.run()
-
-if __name__ == "__main__":
-    main()
