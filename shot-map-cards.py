@@ -49,7 +49,7 @@ class OptimizedShotMapApp:
             df = pd.read_parquet(file_path)
             return df
         except Exception as e:
-            st.error(f"Failed to load shot data for {league} ({season): {e}")
+            st.error(f"Failed to load shot data for {league} ({season}): {e}")
             return pd.DataFrame()
     
     @st.cache_data
