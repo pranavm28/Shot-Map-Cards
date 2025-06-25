@@ -34,12 +34,12 @@ class OptimizedShotMapApp:
                 'ITA-Serie A': 'processed_ita_serie_a_shots.parquet',
                 'GER-Bundesliga': 'processed_ger_bundesliga_shots.parquet',
                 'FRA-Ligue 1': 'processed_fra_ligue_1_shots.parquet'
-    },
+            },
             '2023/24': {
                 'ENG-Premier League': 'processed_eng_premier_league_2324_shots.parquet',
                 'POR-Liga Portugal': 'processed_por_liga_portugal_2324_shots.parquet'
-    }
-}
+            }
+        }
     
     @st.cache_data
     def load_shot_data(_self, season:str, league: str) -> pd.DataFrame:
