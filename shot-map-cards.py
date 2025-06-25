@@ -40,6 +40,11 @@ class OptimizedShotMapApp:
                 'POR-Liga Portugal': 'processed_por_liga_portugal_2324_shots.parquet'
             }
         }
+
+        self.player_stats_files = {
+            '2024/25': 'processed_player_stats.parquet',
+            '2023/24': 'processed_player_stats_2324.parquet'
+        }
     
     @st.cache_data
     def load_shot_data(_self, season:str, league: str) -> pd.DataFrame:
@@ -56,10 +61,11 @@ class OptimizedShotMapApp:
     def load_player_stats(_self) -> pd.DataFrame:
         """Load preprocessed player statistics."""
         try:
-            df = pd.read_parquet('processed_player_stats.parquet')
+            file_path = _self.player_stats_files[season]
+            df = pd.read_parquet(file_path)
             return df
         except Exception as e:
-            st.error(f"Failed to load player stats: {e}")
+            st.error(f"Failed to load player stats: {season} {e}")
             return pd.DataFrame()
     
     def filter_player_shots(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None) -> pd.DataFrame:
@@ -875,7 +881,7 @@ class OptimizedShotMapApp:
         # Load data
         with st.spinner(f"Loading {selected_league} ({selected_season}) data..."):
             shot_data = self.load_shot_data(selected_season, selected_league)
-            player_stats = self.load_player_stats()
+            player_stats = self.load_player_stats(selected_season)
         
         if shot_data.empty or player_stats.empty:
             st.error("Could not load data. Please ensure preprocessed files are available.")
