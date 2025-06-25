@@ -302,11 +302,11 @@ class OptimizedShotMapApp:
                 title = f"Selected Players - Shot Time Distribution"
         else:
     # Check if all players are from the same team
-        unique_teams = distribution_df['team'].unique()
-        if len(unique_teams) == 1:
-            title = f"{unique_teams[0]} - Shot Time Distribution"
-        else:
-            title = "Shot Time Distribution"
+            unique_teams = distribution_df['team'].unique()
+            if len(unique_teams) == 1:
+                title = f"{unique_teams[0]} - Shot Time Distribution"
+            else:
+                title = "Shot Time Distribution"
         
         if chart_type == "Bar Chart":
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
