@@ -45,7 +45,7 @@ class OptimizedShotMapApp:
     def load_shot_data(_self, season:str, league: str) -> pd.DataFrame:
         """Load preprocessed shot data for a league and season."""
         try:
-            file_path = _self.league_files[league][season]
+            file_path = _self.league_files[season][league]
             df = pd.read_parquet(file_path)
             return df
         except Exception as e:
