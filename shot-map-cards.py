@@ -58,7 +58,7 @@ class OptimizedShotMapApp:
             return pd.DataFrame()
     
     @st.cache_data
-    def load_player_stats(_self) -> pd.DataFrame:
+    def load_player_stats(_self, season: str) -> pd.DataFrame:
         """Load preprocessed player statistics."""
         try:
             file_path = _self.player_stats_files[season]
