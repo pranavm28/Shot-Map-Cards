@@ -280,19 +280,6 @@ class OptimizedShotMapApp:
         if distribution_df.empty:
             return None, None
         # Determine title based on filters
-        if selected_players:
-            if len(selected_players) == 1:
-                title = f"{selected_players[0]} - Shot Time Distribution"
-            else:
-                title = f"Selected Players - Shot Time Distribution"
-        else:
-    # Check if all players are from the same team
-            unique_teams = distribution_df['team'].unique()
-        if len(unique_teams) == 1:
-            title = f"{unique_teams[0]} - Shot Time Distribution"
-        else:
-            title = "Shot Time Distribution"
-        
         # Aggregate data by time category
         agg_data = distribution_df.groupby('time_category').agg({
             'shots': 'sum',
@@ -308,6 +295,18 @@ class OptimizedShotMapApp:
         category_order = ['0-1s', '1-2s', '2-3s', '3-4s', '4-5s', '5-7.5s', '7.5-10s', '10s+']
         agg_data['time_category'] = pd.Categorical(agg_data['time_category'], categories=category_order, ordered=True)
         agg_data = agg_data.sort_values('time_category')
+        if selected_players:
+            if len(selected_players) == 1:
+                title = f"{selected_players[0]} - Shot Time Distribution"
+            else:
+                title = f"Selected Players - Shot Time Distribution"
+        else:
+    # Check if all players are from the same team
+            unique_teams = distribution_df['team'].unique()
+        if len(unique_teams) == 1:
+            title = f"{unique_teams[0]} - Shot Time Distribution"
+        else:
+            title = "Shot Time Distribution"
         
         if chart_type == "Bar Chart":
             fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.98)
