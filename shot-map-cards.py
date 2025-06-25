@@ -28,22 +28,28 @@ class OptimizedShotMapApp:
     
     def __init__(self):
         self.league_files = {
-            'ESP-La Liga': 'processed_esp_la_liga_shots.parquet',
-            'ENG-Premier League': 'processed_eng_premier_league_shots.parquet',
-            'ITA-Serie A': 'processed_ita_serie_a_shots.parquet',
-            'GER-Bundesliga': 'processed_ger_bundesliga_shots.parquet',
-            'FRA-Ligue 1': 'processed_fra_ligue_1_shots.parquet'
-        }
+            '2024/25': {
+                'ESP-La Liga': 'processed_esp_la_liga_shots.parquet',
+                'ENG-Premier League': 'processed_eng_premier_league_shots.parquet',
+                'ITA-Serie A': 'processed_ita_serie_a_shots.parquet',
+                'GER-Bundesliga': 'processed_ger_bundesliga_shots.parquet',
+                'FRA-Ligue 1': 'processed_fra_ligue_1_shots.parquet'
+    },
+            '2023/24': {
+                'ENG-Premier League': 'processed_eng_premier_league_2324_shots.parquet',
+                'POR-Liga Portugal': 'processed_por_liga_portugal_2324_shots.parquet'
+    }
+}
     
     @st.cache_data
-    def load_shot_data(_self, league: str) -> pd.DataFrame:
-        """Load preprocessed shot data for a league."""
+    def load_shot_data(_self, season:str, league: str) -> pd.DataFrame:
+        """Load preprocessed shot data for a league and season."""
         try:
-            file_path = _self.league_files[league]
+            file_path = _self.league_files[league][season]
             df = pd.read_parquet(file_path)
             return df
         except Exception as e:
-            st.error(f"Failed to load shot data for {league}: {e}")
+            st.error(f"Failed to load shot data for {league} ({season): {e}")
             return pd.DataFrame()
     
     @st.cache_data
@@ -479,7 +485,7 @@ class OptimizedShotMapApp:
         plt.close(fig)
         return plot_data, download_data
     """
-    def run_shot_map_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str):
+    def run_shot_map_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str, selected_season: str):
         """Run the shot map analysis tab."""
         # Filter player stats by league
         league_player_stats = player_stats[player_stats['league'] == selected_league]
@@ -587,7 +593,7 @@ class OptimizedShotMapApp:
                     st.markdown(f"**Context:** {shots_with_timing}/{total_shots} total shots have timing data")
         
         # Summary table
-        st.subheader(f"📋 All Players Summary (Min. {min_minutes} minutes)")
+        st.subheader(f"📋 All Players Summary - {selected_league} ({selected_season}) (Min. {min_minutes} minutes)")
         
         # Create enhanced summary table
         summary_data = []
@@ -641,9 +647,9 @@ class OptimizedShotMapApp:
         total_league = len(league_player_stats)
         st.info(f"📊 Showing {total_eligible} out of {total_league} players with at least {min_minutes} minutes played")
     
-    def run_time_distribution_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str):
+    def run_time_distribution_tab(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, selected_league: str, selected_season: str):
         """Run the time distribution analysis tab."""
-        st.header("⏱️ Shot Time Distribution Analysis")
+        st.header(f"⏱️ Shot Time Distribution Analysis - {selected_league} ({selected_season})")
         st.markdown("Analyze how quickly players shoot after receiving the ball from teammates")
         
         # Filter player stats by league
@@ -858,13 +864,17 @@ class OptimizedShotMapApp:
         # Sidebar - Common filters
         st.sidebar.header("🔧 Settings")
         
-        # League selection (common for both tabs)
-        leagues = list(self.league_files.keys())
+        # Season selection
+        seasons = list(self.league_files.keys())
+        selected_season = st.sidebar.selectbox("Select Season", seasons)
+
+        # League selection
+        leagues = list(self.league_files[selected_season].keys())
         selected_league = st.sidebar.selectbox("Select League", leagues)
         
         # Load data
-        with st.spinner(f"Loading {selected_league} data..."):
-            shot_data = self.load_shot_data(selected_league)
+        with st.spinner(f"Loading {selected_league} ({selected_season}) data..."):
+            shot_data = self.load_shot_data(selected_season, selected_league)
             player_stats = self.load_player_stats()
         
         if shot_data.empty or player_stats.empty:
@@ -873,11 +883,11 @@ class OptimizedShotMapApp:
         
         # Tab 1: Shot Maps
         with tab1:
-            self.run_shot_map_tab(shot_data, player_stats, selected_league)
+            self.run_shot_map_tab(shot_data, player_stats, selected_league, selected_season)
         
         # Tab 2: Time Distribution
         with tab2:
-            self.run_time_distribution_tab(shot_data, player_stats, selected_league)
+            self.run_time_distribution_tab(shot_data, player_stats, selected_league, selected_season)
         
         # Sidebar social links
         with st.sidebar:
