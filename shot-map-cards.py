@@ -316,7 +316,7 @@ class OptimizedShotMapApp:
             # Shots bar chart
             bars1 = ax1.bar(agg_data['time_category'], agg_data['shots'], 
                            color='#FF5959', alpha=0.8, edgecolor='white', linewidth=1)
-            ax1.set_title('Shot Distribution by Time Category', fontsize=12, fontweight='bold', color='white')
+            ax1.set_title('Shot Distribution by Time Category | @pranav_m28', fontsize=12, fontweight='bold', color='white')
             ax1.set_ylabel('Number of Shots', fontsize=12, color='white')
             ax1.tick_params(colors='white')
             ax1.set_facecolor('#181818')
@@ -330,7 +330,7 @@ class OptimizedShotMapApp:
             # Goals bar chart
             bars2 = ax2.bar(agg_data['time_category'], agg_data['goals'], 
                            color='#8ff00f', alpha=0.8, edgecolor='white', linewidth=1)
-            ax2.set_title('Goal Distribution by Time Category', fontsize=12, fontweight='bold', color='white')
+            ax2.set_title('Goal Distribution by Time Category | @pranav_m28', fontsize=12, fontweight='bold', color='white')
             ax2.set_ylabel('Number of Goals', fontsize=12, color='white')
             ax2.set_xlabel('Time to Shoot', fontsize=12, color='white')
             ax2.tick_params(colors='white')
@@ -364,7 +364,7 @@ class OptimizedShotMapApp:
             bars2 = ax.bar(x_pos, shots_minus_goals, width, bottom=agg_data['goals'],
                           color='#FF5959', alpha=0.8, label='Shots (no goal)', edgecolor='white', linewidth=1)
             
-            ax.set_title('Shot vs Goal Distribution by Time Category', fontsize=12, fontweight='bold', color='white')
+            ax.set_title('Shot vs Goal Distribution by Time Category | @pranav_m28', fontsize=12, fontweight='bold', color='white')
             ax.set_ylabel('Count', fontsize=12, color='white')
             ax.set_xlabel('Time to Shoot', fontsize=12, color='white')
             ax.set_xticks(x_pos)
@@ -393,7 +393,7 @@ class OptimizedShotMapApp:
             ax.fill_between(agg_data['time_category'], agg_data['conversion_rate'], 
                            alpha=0.3, color='#00D4FF')
             
-            ax.set_title('Conversion Rate by Time to Shoot', fontsize=12, fontweight='bold', color='white')
+            ax.set_title('Conversion Rate by Time to Shoot | @pranav_m28', fontsize=12, fontweight='bold', color='white')
             ax.set_ylabel('Conversion Rate (%)', fontsize=12, color='white')
             ax.set_xlabel('Time to Shoot', fontsize=12, color='white')
             ax.tick_params(colors='white')
