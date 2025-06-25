@@ -302,7 +302,7 @@ class OptimizedShotMapApp:
                 title = f"Selected Players - Shot Time Distribution"
         else:
     # Check if all players are from the same team
-            unique_teams = distribution_df['team'].unique()
+        unique_teams = distribution_df['team'].unique()
         if len(unique_teams) == 1:
             title = f"{unique_teams[0]} - Shot Time Distribution"
         else:
