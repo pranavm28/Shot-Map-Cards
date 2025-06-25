@@ -279,6 +279,19 @@ class OptimizedShotMapApp:
         
         if distribution_df.empty:
             return None, None
+        # Determine title based on filters
+        if selected_players:
+            if len(selected_players) == 1:
+                title = f"{selected_players[0]} - Shot Time Distribution"
+            else:
+                title = f"Selected Players - Shot Time Distribution"
+        else:
+    # Check if all players are from the same team
+            unique_teams = distribution_df['team'].unique()
+        if len(unique_teams) == 1:
+            title = f"{unique_teams[0]} - Shot Time Distribution"
+        else:
+            title = "Shot Time Distribution"
         
         # Aggregate data by time category
         agg_data = distribution_df.groupby('time_category').agg({
