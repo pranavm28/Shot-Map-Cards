@@ -310,6 +310,7 @@ class OptimizedShotMapApp:
         agg_data = agg_data.sort_values('time_category')
         
         if chart_type == "Bar Chart":
+            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.98)
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
             fig.patch.set_facecolor('#181818')
             
@@ -346,6 +347,7 @@ class OptimizedShotMapApp:
             plt.tight_layout()
         
         elif chart_type == "Stacked Bar":
+            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.98)
             fig, ax = plt.subplots(figsize=(12, 8))
             fig.patch.set_facecolor('#181818')
             ax.set_facecolor('#181818')
@@ -379,6 +381,7 @@ class OptimizedShotMapApp:
             plt.tight_layout()
         
         elif chart_type == "Conversion Rate Line":
+            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.98)
             fig, ax = plt.subplots(figsize=(12, 8))
             fig.patch.set_facecolor('#181818')
             ax.set_facecolor('#181818')
