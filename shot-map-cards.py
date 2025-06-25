@@ -311,7 +311,7 @@ class OptimizedShotMapApp:
         if chart_type == "Bar Chart":
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
             fig.patch.set_facecolor('#181818')
-            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.98)
+            fig.suptitle(title, fontsize=20, fontweight='bold', color='white', y=0.98)
             
             # Shots bar chart
             bars1 = ax1.bar(agg_data['time_category'], agg_data['shots'], 
@@ -349,7 +349,7 @@ class OptimizedShotMapApp:
             fig, ax = plt.subplots(figsize=(12, 8))
             fig.patch.set_facecolor('#181818')
             ax.set_facecolor('#181818')
-            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.95)
+            fig.suptitle(title, fontsize=20, fontweight='bold', color='white', y=0.95)
             
             # Create stacked bar chart
             width = 0.6
@@ -383,7 +383,7 @@ class OptimizedShotMapApp:
             fig, ax = plt.subplots(figsize=(12, 8))
             fig.patch.set_facecolor('#181818')
             ax.set_facecolor('#181818')
-            fig.suptitle(title, fontsize=18, fontweight='bold', color='white', y=0.95)
+            fig.suptitle(title, fontsize=20, fontweight='bold', color='white', y=0.95)
             
             # Line plot for conversion rate
             ax.plot(agg_data['time_category'], agg_data['conversion_rate'], 
