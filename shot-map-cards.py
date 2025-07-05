@@ -68,29 +68,33 @@ class OptimizedShotMapApp:
             st.error(f"Failed to load player stats: {season} {e}")
             return pd.DataFrame()
     
-    def filter_player_shots(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None) -> pd.DataFrame:
-        """Filter shots for a specific player with optional time filter."""
+    def filter_player_shots(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None, area_filter: str = None) -> pd.DataFrame:
+        """Filter shots for a specific player with optional time and area filters."""
         player_shots = shot_data[shot_data['player'] == player_name].copy()
         
+        # Apply area filter
+        if area_filter == "Penalty Box":
+            player_shots = player_shots[player_shots['in_penalty_box'] == True]
+        elif area_filter == "Six Yard Box":
+            player_shots = player_shots[player_shots['in_six_yard_box'] == True]
+        
         if max_time is not None:
-            # FIXED: Only include shots that have valid timing data AND are within the time limit
-            # This excludes penalties and other shots that weren't preceded by a teammate's pass
             time_mask = (player_shots['TimeToShot'] <= max_time) & (player_shots['TimeToShot'].notna())
             player_shots = player_shots[time_mask]
         
         return player_shots
+
     
-    def calculate_filtered_stats(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None) -> dict:
+    def calculate_filtered_stats(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None, area_filter: str = None) -> dict:
         """Calculate statistics for filtered data."""
-        filtered_shots = self.filter_player_shots(shot_data, player_name, max_time)
+        filtered_shots = self.filter_player_shots(shot_data, player_name, max_time, area_filter)
         
         total_shots = len(filtered_shots)
         total_goals = len(filtered_shots[filtered_shots['is_goal'] == True])
         conversion_rate = (total_goals / total_shots * 100) if total_shots > 0 else 0
         
-        # Calculate average time to shoot for all player shots (not just filtered)
-        all_player_shots = shot_data[shot_data['player'] == player_name]
-        valid_timing = all_player_shots[all_player_shots['TimeToShot'].notna()]
+        # Calculate average time to shoot for filtered shots
+        valid_timing = filtered_shots[filtered_shots['TimeToShot'].notna()]
         avg_time_to_shoot = valid_timing['TimeToShot'].mean() if len(valid_timing) > 0 else 0
         
         return {
@@ -101,10 +105,10 @@ class OptimizedShotMapApp:
         }
     
     def create_shot_map(self, shot_data: pd.DataFrame, player_stats: pd.DataFrame, 
-                       player_name: str, max_time: float = None) -> tuple:
+                       player_name: str, max_time: float = None, area_filter: str = None) -> tuple:
         """Create shot map visualization."""
         # Get filtered shots
-        filtered_shots = self.filter_player_shots(shot_data, player_name, max_time)
+        filtered_shots = self.filter_player_shots(shot_data, player_name, max_time, area_filter)
         
         if filtered_shots.empty:
             return None, None
@@ -119,7 +123,7 @@ class OptimizedShotMapApp:
         goals = filtered_shots[filtered_shots['is_goal'] == True]
         
         # Calculate stats
-        stats = self.calculate_filtered_stats(shot_data, player_name, max_time)
+        stats = self.calculate_filtered_stats(shot_data, player_name, max_time, area_filter)
         
         # Create the plot
         fig, ax = plt.subplots(figsize=(15.5, 12))
@@ -201,14 +205,28 @@ class OptimizedShotMapApp:
         plt.gca().invert_yaxis()
         
         # Title - Updated to reflect that only shots after passes are shown when filtered
+        area_filter_text = f" ({area_filter})" if area_filter else ""
         time_filter_text = f" (within {max_time}s)" if max_time is not None else ""
-        fig_text(0.512, 0.975, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
+        fig_text(0.512, 0.980, f"<{player_name}>", font='Arial Rounded MT Bold', size=30,
                  ha="center", color="#FFFFFF", fontweight='bold', highlight_textprops=[{"color": '#FFFFFF'}])
         
-        fig_text(0.512, 0.928,
-                 f"{player_team} | {int(player_minutes)} Mins | Shot Map Card{time_filter_text} | Made by @pranav_m28",
-                 font='Arial Rounded MT Bold', size=24,
-                 ha="center", color="#FFFFFF", fontweight='bold')
+        fig_text(0.512, 0.933,
+         f"{player_team} | {int(player_minutes)} Mins | Shot Map Card | Made by @pranav_m28",
+         font='Arial Rounded MT Bold', size=24,
+         ha="center", color="#FFFFFF", fontweight='bold')
+        
+        if area_filter or max_time is not None:
+            filter_parts = []
+            if area_filter:
+                filter_parts.append(f"Area: {area_filter}")
+            if max_time is not None:
+                filter_parts.append(f"Time: within {max_time}s")
+            
+            filter_text = " | ".join(filter_parts)
+            fig_text(0.512, 0.886,  # Position below the main info line
+                    filter_text,
+                    font='Arial Rounded MT Bold', size=20,  # Slightly smaller font
+                    ha="center", color="#FFFFFF", fontweight='bold')
         
         # Save for display
         buffer = io.BytesIO()
@@ -542,6 +560,17 @@ class OptimizedShotMapApp:
             max_time = st.sidebar.slider("Maximum Time to Shoot (seconds)", 
                                        min_value=0.5, max_value=10.0, value=5.0, step=0.5,
                                        key="shotmap_max_time")
+            
+
+        # Area filter
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Area Filter")
+        area_filter = st.sidebar.selectbox(
+            "Filter by shooting area",
+            ["All Areas", "Penalty Box", "Six Yard Box"],
+            help="Filter shots by specific areas of the pitch"
+        )
+        area_filter = None if area_filter == "All Areas" else area_filter
         
         # Main content
         col1, col2 = st.columns([2, 1])
@@ -550,15 +579,16 @@ class OptimizedShotMapApp:
             st.subheader("📊 Shot Map Visualization")
             if selected_player:
                 with st.spinner("Creating shot map..."):
-                    result = self.create_shot_map(shot_data, league_player_stats, selected_player, max_time)
+                    result = self.create_shot_map(shot_data, league_player_stats, selected_player, max_time, area_filter)
                 
                 if result and result[0] is not None:
                     plot_data, download_data = result
                     st.image(f"data:image/png;base64,{plot_data}")
                     
                     # Download button
+                    area_suffix = f"_{area_filter.lower().replace(' ', '_')}" if area_filter else ""
                     time_filter_suffix = f"_within_{max_time}s" if max_time is not None else ""
-                    filename = f"{selected_player.replace(' ', '_')}_shot_map{time_filter_suffix}.png"
+                    filename = f"{selected_player.replace(' ', '_')}_shot_map{area_suffix}{time_filter_suffix}.png"
                     
                     st.download_button(
                         label="📥 Download High Quality Image",
@@ -577,7 +607,7 @@ class OptimizedShotMapApp:
                 player_info = league_player_stats[league_player_stats['player'] == selected_player].iloc[0]
                 
                 # Calculate filtered stats
-                filtered_stats = self.calculate_filtered_stats(shot_data, selected_player, max_time)
+                filtered_stats = self.calculate_filtered_stats(shot_data, selected_player, max_time, area_filter)
                 
                 # Display metrics with context
                 if max_time is not None:
@@ -597,6 +627,24 @@ class OptimizedShotMapApp:
                     total_shots = len(all_player_shots)
                     shots_with_timing = len(all_player_shots[all_player_shots['TimeToShot'].notna()])
                     st.markdown(f"**Context:** {shots_with_timing}/{total_shots} total shots have timing data")
+
+                # Display area-specific stats from preprocessed data
+                #if area_filter and selected_player:
+                 #   player_info = league_player_stats[league_player_stats['player'] == selected_player].iloc[0]
+                    
+                  #  if area_filter == "Penalty Box":
+                   #     st.markdown("**Penalty Box Stats (All Season):**")
+                    #    st.metric("Penalty Box Shots", f"{int(player_info['penalty_box_shots'])}")
+                     #   st.metric("Penalty Box Goals", f"{int(player_info['penalty_box_goals'])}")
+                       # st.metric("Penalty Box Conv. Rate", f"{player_info['penalty_box_conversion_rate']:.1f}%")
+                      #  st.metric("Penalty Box Avg. Time", f"{player_info['penalty_box_avg_time_to_shoot']:.2f}s")
+                        
+                    #elif area_filter == "Six Yard Box":
+                     #   st.markdown("**Six Yard Box Stats (All Season):**")
+                      #  st.metric("Six Yard Shots", f"{int(player_info['six_yard_shots'])}")
+                       # st.metric("Six Yard Goals", f"{int(player_info['six_yard_goals'])}")
+                        #st.metric("Six Yard Conv. Rate", f"{player_info['six_yard_conversion_rate']:.1f}%")
+                        #st.metric("Six Yard Avg. Time", f"{player_info['six_yard_avg_time_to_shoot']:.2f}s")
         
         # Summary table
         st.subheader(f"📋 All Players Summary - {selected_league} ({selected_season}) (Min. {min_minutes} minutes)")
@@ -607,6 +655,17 @@ class OptimizedShotMapApp:
             player_name = player_row['player']
             
             # Calculate filtered stats if time filter is applied
+
+            if area_filter is not None:
+                area_filtered_stats = self.calculate_filtered_stats(shot_data, player_name, max_time, area_filter)
+                area_filtered_shots = area_filtered_stats['total_shots']
+                area_filtered_goals = area_filtered_stats['total_goals']
+                area_filtered_conv = area_filtered_stats['conversion_rate']
+            else:
+                area_filtered_shots = 'N/A'
+                area_filtered_goals = 'N/A'
+                area_filtered_conv = 'N/A'
+
             if max_time is not None:
                 filtered_stats = self.calculate_filtered_stats(shot_data, player_name, max_time)
                 filtered_shots = filtered_stats['total_shots']
@@ -629,8 +688,13 @@ class OptimizedShotMapApp:
                 'Avg. Time to Shoot': player_row['avg_time_to_shoot'],
                 'Filtered Shots': filtered_shots,
                 'Filtered Goals': filtered_goals,
-                'Filtered Conv. %': filtered_conv
+                'Filtered Conv. %': filtered_conv, 
+                f'Area Filtered Shots ({area_filter})': area_filtered_shots,
+                f'Area Filtered Goals ({area_filter})': area_filtered_goals,
+                f'Area Filtered Conv. % ({area_filter})': area_filtered_conv
             })
+
+            # Calculate area-specific filtered stats if area filter is applied
         
         summary_df = pd.DataFrame(summary_data)
         summary_df = summary_df.sort_values('Total Shots', ascending=False)
