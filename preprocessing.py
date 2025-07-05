@@ -16,7 +16,9 @@ class ShotDataPreprocessor:
             'ENG-Premier League': 'Premier_League_2425.parquet',
             'ITA-Serie A': 'Serie_A_2425.parquet',
             'GER-Bundesliga': 'Bundesliga_2425.parquet',
-            'FRA-Ligue 1': 'Ligue_1_2425.parquet'
+            'FRA-Ligue 1': 'Ligue_1_2425.parquet',
+            #'POR-Liga Portugal': 'Primeira_Liga_2324.parquet'
+            #'BEL-Jupiler Pro League': 'Jupiler_Pro_League_2324.parquet'
         }
         
         self.required_columns = [
@@ -28,8 +30,24 @@ class ShotDataPreprocessor:
         self.output_columns = [
             "league", "season", "gameId", "team", "player", 
             "x", "y", "endX", "endY", "is_shot", "is_goal", 
-            "total_seconds", "TimeToShot"
+            "total_seconds", "TimeToShot", "in_penalty_box", "in_six_yard_box"
         ]
+        
+        # Define penalty box coordinates
+        self.penalty_box = {
+            'x_min': 102,
+            'x_max': 120,
+            'y_min': 18,
+            'y_max': 62
+        }
+        
+        # Define 6-yard box coordinates
+        self.six_yard_box = {
+            'x_min': 114,
+            'x_max': 120,
+            'y_min': 30,
+            'y_max': 50
+        }
     
     def load_and_filter_data(self, file_path: str, league: str, season: int) -> pd.DataFrame:
         """Load and filter data by league and season."""
@@ -56,6 +74,46 @@ class ShotDataPreprocessor:
         """Calculate total seconds for time calculations."""
         data = data.copy()
         data['total_seconds'] = data['minute'] * 60 + data['second']
+        return data
+    
+    def label_shot_areas(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Label shots based on whether they were taken inside penalty box or 6-yard box.
+        """
+        print("Labeling shot areas...")
+        data = data.copy()
+        
+        # Initialize columns
+        data['in_penalty_box'] = False
+        data['in_six_yard_box'] = False
+        
+        # Label penalty box shots
+        penalty_box_mask = (
+            (data['x'] >= self.penalty_box['x_min']) & 
+            (data['x'] <= self.penalty_box['x_max']) &
+            (data['y'] >= self.penalty_box['y_min']) & 
+            (data['y'] <= self.penalty_box['y_max'])
+        )
+        data.loc[penalty_box_mask, 'in_penalty_box'] = True
+        
+        # Label 6-yard box shots
+        six_yard_box_mask = (
+            (data['x'] >= self.six_yard_box['x_min']) & 
+            (data['x'] <= self.six_yard_box['x_max']) &
+            (data['y'] >= self.six_yard_box['y_min']) & 
+            (data['y'] <= self.six_yard_box['y_max'])
+        )
+        data.loc[six_yard_box_mask, 'in_six_yard_box'] = True
+        
+        # Print statistics
+        total_shots = len(data[data['is_shot'] == True])
+        penalty_box_shots = len(data[(data['is_shot'] == True) & (data['in_penalty_box'] == True)])
+        six_yard_box_shots = len(data[(data['is_shot'] == True) & (data['in_six_yard_box'] == True)])
+        
+        print(f"Total shots: {total_shots}")
+        print(f"Penalty box shots: {penalty_box_shots} ({penalty_box_shots/total_shots*100:.1f}%)")
+        print(f"6-yard box shots: {six_yard_box_shots} ({six_yard_box_shots/total_shots*100:.1f}%)")
+        
         return data
     
     def calculate_time_to_shoot(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -125,16 +183,18 @@ class ShotDataPreprocessor:
         """Create dataset containing only shot-related events."""
         print("Creating shot-only dataset...")
         
-        # Keep only shots and the passes that led to shots (where TimeToShot is not null)
+        # Keep only shots
         shot_events = data[data['is_shot'] == True].copy()
         
         print(f"Total shots: {len(shot_events)}")
         print(f"Shots with timing data: {shot_events['TimeToShot'].notna().sum()}")
+        print(f"Penalty box shots: {len(shot_events[shot_events['in_penalty_box'] == True])}")
+        print(f"6-yard box shots: {len(shot_events[shot_events['in_six_yard_box'] == True])}")
         
         return shot_events[self.output_columns]
     
     def create_player_aggregations(self, shot_data: pd.DataFrame, minutes_df: pd.DataFrame) -> pd.DataFrame:
-        """Create pre-aggregated player statistics."""
+        """Create pre-aggregated player statistics including area-specific stats."""
         print("Creating player aggregations...")
         
         player_stats = []
@@ -161,6 +221,22 @@ class ShotDataPreprocessor:
             valid_timing = player_data[player_data['TimeToShot'].notna()]
             avg_time_to_shoot = valid_timing['TimeToShot'].mean() if len(valid_timing) > 0 else np.nan
             
+            # Penalty box statistics
+            penalty_box_data = player_data[player_data['in_penalty_box'] == True]
+            penalty_box_shots = len(penalty_box_data)
+            penalty_box_goals = len(penalty_box_data[penalty_box_data['is_goal'] == True])
+            penalty_box_conversion = (penalty_box_goals / penalty_box_shots * 100) if penalty_box_shots > 0 else 0
+            penalty_box_timing = penalty_box_data[penalty_box_data['TimeToShot'].notna()]
+            penalty_box_avg_time = penalty_box_timing['TimeToShot'].mean() if len(penalty_box_timing) > 0 else np.nan
+            
+            # 6-yard box statistics
+            six_yard_data = player_data[player_data['in_six_yard_box'] == True]
+            six_yard_shots = len(six_yard_data)
+            six_yard_goals = len(six_yard_data[six_yard_data['is_goal'] == True])
+            six_yard_conversion = (six_yard_goals / six_yard_shots * 100) if six_yard_shots > 0 else 0
+            six_yard_timing = six_yard_data[six_yard_data['TimeToShot'].notna()]
+            six_yard_avg_time = six_yard_timing['TimeToShot'].mean() if len(six_yard_timing) > 0 else np.nan
+            
             player_stats.append({
                 'player': player,
                 'team': team,
@@ -172,7 +248,19 @@ class ShotDataPreprocessor:
                 'shots_per_90': shots_per_90,
                 'goals_per_90': goals_per_90,
                 'avg_time_to_shoot': avg_time_to_shoot,
-                'shots_with_timing': len(valid_timing)
+                'shots_with_timing': len(valid_timing),
+                # Penalty box stats
+                'penalty_box_shots': penalty_box_shots,
+                'penalty_box_goals': penalty_box_goals,
+                'penalty_box_conversion_rate': penalty_box_conversion,
+                'penalty_box_avg_time_to_shoot': penalty_box_avg_time,
+                'penalty_box_shots_with_timing': len(penalty_box_timing),
+                # 6-yard box stats
+                'six_yard_shots': six_yard_shots,
+                'six_yard_goals': six_yard_goals,
+                'six_yard_conversion_rate': six_yard_conversion,
+                'six_yard_avg_time_to_shoot': six_yard_avg_time,
+                'six_yard_shots_with_timing': len(six_yard_timing)
             })
         
         return pd.DataFrame(player_stats)
@@ -189,13 +277,14 @@ class ShotDataPreprocessor:
         # Process data step by step
         scaled_data = self.scale_coordinates(raw_data)
         timed_data = self.calculate_total_seconds(scaled_data)
-        final_data = self.calculate_time_to_shoot(timed_data)
+        area_labeled_data = self.label_shot_areas(timed_data)
+        final_data = self.calculate_time_to_shoot(area_labeled_data)
         
         # Create shot-only dataset
         shot_data = self.create_shot_only_dataset(final_data)
         
         # Clean up memory
-        del raw_data, scaled_data, timed_data, final_data
+        del raw_data, scaled_data, timed_data, area_labeled_data, final_data
         gc.collect()
         
         return shot_data
@@ -230,16 +319,20 @@ class ShotDataPreprocessor:
                 shot_data.to_parquet(output_file, index=False)
                 print(f"Saved {output_file} with {len(shot_data)} shot records")
                 
-                # Print timing stats for this league
+                # Print timing and area stats for this league
                 timing_count = shot_data['TimeToShot'].notna().sum()
+                penalty_box_count = shot_data['in_penalty_box'].sum()
+                six_yard_count = shot_data['in_six_yard_box'].sum()
+                
                 print(f"Shots with timing data in {league}: {timing_count}")
+                print(f"Penalty box shots in {league}: {penalty_box_count}")
+                print(f"6-yard box shots in {league}: {six_yard_count}")
             else:
                 print(f"No data processed for {league}")
         
         # Combine all leagues
         if all_shot_data:
             combined_shots = pd.concat(all_shot_data, ignore_index=True)
-            combined_shots.to_parquet('processed_all_leagues_shots.parquet', index=False)
             print(f"\nSaved combined dataset with {len(combined_shots)} total shot records")
             
             # Create player aggregations
@@ -247,19 +340,41 @@ class ShotDataPreprocessor:
             player_stats.to_parquet('processed_player_stats.parquet', index=False)
             print(f"Saved player stats with {len(player_stats)} players")
             
-            # Print summary
+            # Print comprehensive summary
             print(f"\n{'='*50}")
             print("PREPROCESSING SUMMARY")
             print(f"{'='*50}")
             print(f"Total shots processed: {len(combined_shots):,}")
             print(f"Total players: {len(player_stats):,}")
             print(f"Shots with timing data: {combined_shots['TimeToShot'].notna().sum():,}")
+            print(f"Penalty box shots: {combined_shots['in_penalty_box'].sum():,}")
+            print(f"6-yard box shots: {combined_shots['in_six_yard_box'].sum():,}")
             
-            # Show percentage
+            # Show percentages
             total_shots = len(combined_shots)
             shots_with_timing = combined_shots['TimeToShot'].notna().sum()
-            percentage = (shots_with_timing / total_shots * 100) if total_shots > 0 else 0
-            print(f"Percentage of shots with timing: {percentage:.1f}%")
+            penalty_box_shots = combined_shots['in_penalty_box'].sum()
+            six_yard_shots = combined_shots['in_six_yard_box'].sum()
+            
+            timing_percentage = (shots_with_timing / total_shots * 100) if total_shots > 0 else 0
+            penalty_percentage = (penalty_box_shots / total_shots * 100) if total_shots > 0 else 0
+            six_yard_percentage = (six_yard_shots / total_shots * 100) if total_shots > 0 else 0
+            
+            print(f"Percentage of shots with timing: {timing_percentage:.1f}%")
+            print(f"Percentage of penalty box shots: {penalty_percentage:.1f}%")
+            print(f"Percentage of 6-yard box shots: {six_yard_percentage:.1f}%")
+            
+            # Calculate conversion rates by area
+            penalty_box_goals = combined_shots[(combined_shots['in_penalty_box'] == True) & 
+                                             (combined_shots['is_goal'] == True)]
+            six_yard_goals = combined_shots[(combined_shots['in_six_yard_box'] == True) & 
+                                          (combined_shots['is_goal'] == True)]
+            
+            penalty_conversion = (len(penalty_box_goals) / penalty_box_shots * 100) if penalty_box_shots > 0 else 0
+            six_yard_conversion = (len(six_yard_goals) / six_yard_shots * 100) if six_yard_shots > 0 else 0
+            
+            print(f"Penalty box conversion rate: {penalty_conversion:.1f}%")
+            print(f"6-yard box conversion rate: {six_yard_conversion:.1f}%")
             
             # File sizes
             for league in self.leagues_to_file.keys():
