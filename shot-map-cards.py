@@ -215,7 +215,7 @@ class OptimizedShotMapApp:
          font='Arial Rounded MT Bold', size=24,
          ha="center", color="#FFFFFF", fontweight='bold')
 
-        fig_text(0.652, 0.786,
+        fig_text(0.752, 0.786,
          f"shot-map-cards.streamlit.app",
          font='Arial Rounded MT Bold', size=14,
          ha="center", color="#FFFFFF", fontweight='bold', alpha=0.6)
