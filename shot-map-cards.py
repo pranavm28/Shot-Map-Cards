@@ -214,6 +214,11 @@ class OptimizedShotMapApp:
          f"{player_team} | {int(player_minutes)} Mins | Shot Map Card | Made by @pranav_m28",
          font='Arial Rounded MT Bold', size=24,
          ha="center", color="#FFFFFF", fontweight='bold')
+
+        fig_text(0.512, 0.886,
+         f"shot-map-cards.streamlit.app",
+         font='Arial Rounded MT Bold', size=24,
+         ha="center", color="#FFFFFF", fontweight='bold')
         
         if area_filter or max_time is not None:
             filter_parts = []
