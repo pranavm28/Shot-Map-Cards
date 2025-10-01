@@ -77,12 +77,13 @@ class OptimizedShotMapApp:
             st.error(f"Failed to load player stats: {season} {e}")
             return pd.DataFrame()
 
-        def _mask_rect(self, df: pd.DataFrame, bounds: dict) -> pd.Series:
+    def _mask_rect(self, df: pd.DataFrame, bounds: dict) -> pd.Series:
         """Return boolean mask for points inside a rectangular area."""
         return (
             (df['x'] >= bounds['x_min']) & (df['x'] <= bounds['x_max']) &
             (df['y'] >= bounds['y_min']) & (df['y'] <= bounds['y_max'])
         )
+
 
     
     def filter_player_shots(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None, area_filter: str = None) -> pd.DataFrame:
