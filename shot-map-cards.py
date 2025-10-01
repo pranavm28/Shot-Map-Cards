@@ -222,7 +222,7 @@ class OptimizedShotMapApp:
                       fontweight='bold', zorder=5)
         
         # Divider line
-        #pitch.lines(85, 0, 85, 80, ls='-', lw=1.5, color='#FFFFFF', ax=ax, zorder=1, alpha=0.8)
+        pitch.lines(80, 0, 80, 80, ls='-', lw=1.5, color='#FFFFFF', ax=ax, zorder=1, alpha=0.4)
         
         # Invert y-axis
         plt.gca().invert_yaxis()
