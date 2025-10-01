@@ -45,6 +45,15 @@ class OptimizedShotMapApp:
             '2024/25': 'processed_player_stats.parquet',
             '2023/24': 'processed_player_stats_2324.parquet'
         }
+
+            # --- NEW: area bounds (StatsBomb 120x80) ---
+        # Keys here map to UI labels below.
+        self.area_bounds = {
+            'Zone-14':           {'x_min': 80, 'x_max': 102, 'y_min': 30, 'y_max': 50},
+            'Left Half-Space':   {'x_min': 60, 'x_max': 102, 'y_min': 50, 'y_max': 62},
+            'Right Half-Space':  {'x_min': 60, 'x_max': 102, 'y_min': 18, 'y_max': 30},
+        }
+
     
     @st.cache_data
     def load_shot_data(_self, season:str, league: str) -> pd.DataFrame:
@@ -67,6 +76,14 @@ class OptimizedShotMapApp:
         except Exception as e:
             st.error(f"Failed to load player stats: {season} {e}")
             return pd.DataFrame()
+
+        def _mask_rect(self, df: pd.DataFrame, bounds: dict) -> pd.Series:
+        """Return boolean mask for points inside a rectangular area."""
+        return (
+            (df['x'] >= bounds['x_min']) & (df['x'] <= bounds['x_max']) &
+            (df['y'] >= bounds['y_min']) & (df['y'] <= bounds['y_max'])
+        )
+
     
     def filter_player_shots(self, shot_data: pd.DataFrame, player_name: str, max_time: float = None, area_filter: str = None) -> pd.DataFrame:
         """Filter shots for a specific player with optional time and area filters."""
@@ -77,6 +94,11 @@ class OptimizedShotMapApp:
             player_shots = player_shots[player_shots['in_penalty_box'] == True]
         elif area_filter == "Six Yard Box":
             player_shots = player_shots[player_shots['in_six_yard_box'] == True]
+
+        elif area_filter in ("Zone-14", "Left Half-Space", "Right Half-Space"):
+            b = self.area_bounds[area_filter]
+            mask = self._mask_rect(player_shots, b)
+            player_shots = player_shots[mask]
         
         if max_time is not None:
             time_mask = (player_shots['TimeToShot'] <= max_time) & (player_shots['TimeToShot'].notna())
@@ -572,9 +594,10 @@ class OptimizedShotMapApp:
         st.sidebar.subheader("🎯 Area Filter")
         area_filter = st.sidebar.selectbox(
             "Filter by shooting area",
-            ["All Areas", "Penalty Box", "Six Yard Box"],
+            ["All Areas", "Penalty Box", "Six Yard Box", "Zone-14", "Left Half-Space", "Right Half-Space"],
             help="Filter shots by specific areas of the pitch"
         )
+
         area_filter = None if area_filter == "All Areas" else area_filter
         
         # Main content
